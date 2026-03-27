@@ -6,24 +6,25 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/router'
-import { Zap, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react'
+import { Zap, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react'
 import { criarConta } from '@/lib/auth'
 
 export default function PaginaRegistar() {
   const router = useRouter()
-  const [nome, setNome] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmarPassword, setConfirmarPassword] = useState('')
-  const [erro, setErro] = useState('')
-  const [sucesso, setSucesso] = useState(false)
-  const [carregando, setCarregando] = useState(false)
+  const [nome, setNome]                         = useState('')
+  const [email, setEmail]                       = useState('')
+  const [password, setPassword]                 = useState('')
+  const [confirmarPassword, setConfirmarPass]   = useState('')
+  const [erro, setErro]                         = useState('')
+  const [sucesso, setSucesso]                   = useState(false)
+  const [carregando, setCarregando]             = useState(false)
+  const [verPassword, setVerPass]               = useState(false)
+  const [verConfirmar, setVerConfirmar]         = useState(false)
 
   const aoSubmeter = async (e: React.FormEvent) => {
     e.preventDefault()
     setErro('')
 
-    // Validações no cliente
     if (password !== confirmarPassword) {
       setErro('As passwords não coincidem.')
       return
@@ -34,10 +35,8 @@ export default function PaginaRegistar() {
     }
 
     setCarregando(true)
-
     try {
       await criarConta(email, password, nome)
-      // Conta criada — mostrar mensagem de confirmação de email
       setSucesso(true)
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -52,7 +51,6 @@ export default function PaginaRegistar() {
     }
   }
 
-  // Se conta criada com sucesso, mostrar mensagem de confirmação
   if (sucesso) {
     return (
       <>
@@ -89,7 +87,6 @@ export default function PaginaRegistar() {
         className="min-h-screen flex items-center justify-center px-4 py-12"
         style={{ background: 'var(--cor-fundo)' }}
       >
-        {/* Efeito de fundo */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="efeito-glow w-96 h-96 top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2"
             style={{ background: 'rgba(192, 132, 252, 0.1)' }} />
@@ -97,7 +94,6 @@ export default function PaginaRegistar() {
 
         <div className="w-full max-w-md relative z-10">
 
-          {/* Logo + título */}
           <div className="text-center mb-8">
             <Link href="/" className="inline-flex items-center gap-2.5 mb-6 group">
               <div
@@ -118,11 +114,9 @@ export default function PaginaRegistar() {
             </p>
           </div>
 
-          {/* Formulário */}
           <div className="card">
             <form onSubmit={aoSubmeter} className="flex flex-col gap-5">
 
-              {/* Mensagem de erro */}
               {erro && (
                 <div className="flex items-start gap-3 p-4 rounded-xl text-sm"
                   style={{ background: 'rgba(248, 113, 113, 0.1)', border: '1px solid rgba(248, 113, 113, 0.3)', color: 'var(--cor-erro)' }}>
@@ -163,11 +157,23 @@ export default function PaginaRegistar() {
                 <div className="relative">
                   <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
                     style={{ color: 'var(--cor-texto-fraco)' }} />
-                  <input id="password" type="password" value={password}
+                  <input
+                    id="password"
+                    type={verPassword ? 'text' : 'password'}
+                    value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Mínimo 8 caracteres"
-                    className="input-campo pl-11" required minLength={8}
-                    autoComplete="new-password" />
+                    className="input-campo pl-11 pr-11"
+                    required minLength={8} autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setVerPass(!verPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2"
+                    style={{ color: 'var(--cor-texto-fraco)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                  >
+                    {verPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
               </div>
 
@@ -177,15 +183,26 @@ export default function PaginaRegistar() {
                 <div className="relative">
                   <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
                     style={{ color: 'var(--cor-texto-fraco)' }} />
-                  <input id="confirmarPassword" type="password" value={confirmarPassword}
-                    onChange={(e) => setConfirmarPassword(e.target.value)}
+                  <input
+                    id="confirmarPassword"
+                    type={verConfirmar ? 'text' : 'password'}
+                    value={confirmarPassword}
+                    onChange={(e) => setConfirmarPass(e.target.value)}
                     placeholder="Repete a password"
-                    className="input-campo pl-11" required minLength={8}
-                    autoComplete="new-password" />
+                    className="input-campo pl-11 pr-11"
+                    required minLength={8} autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setVerConfirmar(!verConfirmar)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2"
+                    style={{ color: 'var(--cor-texto-fraco)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                  >
+                    {verConfirmar ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
               </div>
 
-              {/* Termos */}
               <p className="text-xs text-center" style={{ color: 'var(--cor-texto-fraco)' }}>
                 Ao criar uma conta, aceitas os nossos{' '}
                 <a href="#" style={{ color: 'var(--cor-marca)' }}>Termos de Serviço</a>
@@ -193,7 +210,6 @@ export default function PaginaRegistar() {
                 <a href="#" style={{ color: 'var(--cor-marca)' }}>Política de Privacidade</a>.
               </p>
 
-              {/* Botão submit */}
               <button type="submit" className="btn-primario justify-center py-3"
                 disabled={carregando}
                 style={carregando ? { opacity: 0.7, cursor: 'not-allowed' } : {}}>
