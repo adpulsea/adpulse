@@ -115,3 +115,56 @@ export default function LayoutPainel({ children, titulo }: Props) {
               style={{ background: 'var(--cor-marca)', color: '#fff' }}>
               Pro
             </Link>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link href="/painel/perfil"
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 transition-opacity hover:opacity-80"
+              style={{ background: 'rgba(124, 123, 250, 0.2)', color: 'var(--cor-marca)' }}>
+              {iniciais}
+            </Link>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{nomeUtilizador}</p>
+              <p className="text-xs truncate" style={{ color: 'var(--cor-texto-fraco)' }}>{utilizador?.email}</p>
+            </div>
+            <button onClick={aoFazerLogout} className="p-1.5 rounded-lg transition-colors flex-shrink-0"
+              style={{ color: 'var(--cor-texto-fraco)' }}
+              onMouseOver={e => { e.currentTarget.style.color = 'var(--cor-erro)'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)' }}
+              onMouseOut={e => { e.currentTarget.style.color = 'var(--cor-texto-fraco)'; e.currentTarget.style.background = 'transparent' }}
+              title="Sair">
+              <LogOut size={16} />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <div className="flex-1 flex flex-col min-w-0 md:ml-64">
+        <header className="sticky top-0 z-20 flex items-center justify-between px-6 py-4"
+          style={{ background: 'rgba(10, 10, 15, 0.85)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--cor-borda)' }}>
+          <div className="flex items-center gap-3">
+            <button className="md:hidden p-2 rounded-lg" onClick={() => setSidebarAberta(true)}
+              style={{ color: 'var(--cor-texto-muted)' }}>
+              <Menu size={20} />
+            </button>
+            {titulo && <h1 className="text-lg font-semibold" style={{ fontFamily: 'var(--fonte-display)' }}>{titulo}</h1>}
+          </div>
+          <div className="flex items-center gap-3">
+            <button className="relative p-2 rounded-xl transition-colors" style={{ color: 'var(--cor-texto-muted)' }}
+              onMouseOver={e => { e.currentTarget.style.background = 'var(--cor-elevado)'; e.currentTarget.style.color = 'var(--cor-texto)' }}
+              onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--cor-texto-muted)' }}>
+              <Bell size={18} />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: 'var(--cor-marca)' }} />
+            </button>
+            <Link href="/painel/perfil"
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold hover:opacity-80 transition-opacity"
+              style={{ background: 'rgba(124, 123, 250, 0.2)', color: 'var(--cor-marca)' }}>
+              {iniciais}
+            </Link>
+          </div>
+        </header>
+        <main className="flex-1 p-6 overflow-auto">{children}</main>
+      </div>
+
+      <ChatWidget />
+    </div>
+  )
+}
