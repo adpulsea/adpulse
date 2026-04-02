@@ -8,9 +8,10 @@ import { createClient } from '@supabase/supabase-js'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
+// Usar service role para ter permissões de admin
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 export const config = {
@@ -49,8 +50,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const session = evento.data.object as Stripe.Checkout.Session
       const { utilizadorId, plano } = session.metadata || {}
       if (utilizadorId && plano) {
-        await supabase.from('perfis').update({ plano }).eq('id', utilizadorId)
-        console.log(`✅ Plano ${plano} ativado para ${utilizadorId}`)
+        const { error } = await supabase
+          .from('perfis')
+          .update({ plano })
+          .eq('id', utilizadorId)
+        if (error) console.error('Erro ao atualizar plano:', error)
+        else console.log(`✅ Plano ${plano} ativado para ${utilizadorId}`)
       }
       break
     }
@@ -60,8 +65,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const customerId = subscription.customer as string
       const customer = await stripe.customers.retrieve(customerId) as Stripe.Customer
       if (customer.email) {
-        await supabase.from('perfis').update({ plano: 'gratuito' }).eq('email', customer.email)
-        console.log(`⚠️ Subscrição cancelada para ${customer.email}`)
+        const { error } = await supabase
+          .from('perfis')
+          .update({ plano: 'gratuito' })
+          .eq('email', customer.email)
+        if (error) console.error('Erro ao revogar plano:', error)
+        else console.log(`⚠️ Subscrição cancelada para ${customer.email}`)
       }
       break
     }
