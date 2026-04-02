@@ -8,23 +8,24 @@ import { useRouter } from 'next/router'
 import {
   Zap, LayoutDashboard, Sparkles, TrendingUp,
   BarChart2, FolderOpen, Menu, X, LogOut,
-  ChevronRight, Bell, CalendarDays, Bot, Workflow, UserCircle, Layers
+  ChevronRight, Bell, CalendarDays, Bot, Workflow, UserCircle, Layers, ImageIcon
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { fazerLogout } from '@/lib/auth'
 import ChatWidget from '@/components/ChatWidget'
 
 const ITENS_NAV = [
-  { label: 'Dashboard',         href: '/painel',               icone: LayoutDashboard },
-  { label: 'AI Content Studio', href: '/painel/studio',        icone: Sparkles        },
-  { label: 'Calendário',        href: '/painel/calendario',    icone: CalendarDays    },
-  { label: 'Viral Lab',         href: '/painel/viral-lab',     icone: TrendingUp      },
-  { label: 'Creator Analyzer',  href: '/painel/analyzer',      icone: BarChart2       },
-  { label: 'Campanhas',         href: '/painel/campanhas',     icone: FolderOpen      },
-  { label: 'Automação',         href: '/painel/automacao',     icone: Workflow        },
-  { label: 'Workspaces',        href: '/painel/workspaces',    icone: Layers          },
-  { label: 'Agentes IA',        href: '/painel/agentes',       icone: Bot             },
-  { label: 'Perfil',            href: '/painel/perfil',        icone: UserCircle      },
+  { label: 'Dashboard',         href: '/painel',             icone: LayoutDashboard },
+  { label: 'AI Content Studio', href: '/painel/studio',      icone: Sparkles        },
+  { label: 'Calendário',        href: '/painel/calendario',  icone: CalendarDays    },
+  { label: 'Biblioteca de Média', href: '/painel/media',     icone: ImageIcon       },
+  { label: 'Viral Lab',         href: '/painel/viral-lab',   icone: TrendingUp      },
+  { label: 'Creator Analyzer',  href: '/painel/analyzer',    icone: BarChart2       },
+  { label: 'Campanhas',         href: '/painel/campanhas',   icone: FolderOpen      },
+  { label: 'Automação',         href: '/painel/automacao',   icone: Workflow        },
+  { label: 'Workspaces',        href: '/painel/workspaces',  icone: Layers          },
+  { label: 'Agentes IA',        href: '/painel/agentes',     icone: Bot             },
+  { label: 'Perfil',            href: '/painel/perfil',      icone: UserCircle      },
 ]
 
 type Props = {
@@ -78,7 +79,7 @@ export default function LayoutPainel({ children, titulo }: Props) {
             {ITENS_NAV.map((item) => {
               const Icone = item.icone
               const ativo = router.pathname === item.href
-              const isNovo = item.href === '/painel/agentes' || item.href === '/painel/automacao' || item.href === '/painel/workspaces'
+              const isNovo = ['/painel/agentes', '/painel/automacao', '/painel/workspaces', '/painel/media'].includes(item.href)
               return (
                 <Link key={item.href} href={item.href} onClick={() => setSidebarAberta(false)}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
