@@ -90,24 +90,22 @@ const TESTEMUNHOS = [
 ]
 
 export default function Precos() {
-  const { utilizador }          = useAuth()
-  const router                  = useRouter()
-  const [anual, setAnual]       = useState(false)
-  const [carregando, setCarr]   = useState<string | null>(null)
-  const sucesso                 = router.query.sucesso === 'true'
-  const cancelado               = router.query.cancelado === 'true'
+  const { utilizador }        = useAuth()
+  const router                = useRouter()
+  const [anual, setAnual]     = useState(false)
+  const [carregando, setCarr] = useState<string | null>(null)
+  const sucesso               = router.query.sucesso === 'true'
+  const cancelado             = router.query.cancelado === 'true'
 
   const fazerCheckout = async (planoId: string) => {
     if (planoId === 'gratuito') {
       router.push(utilizador ? '/painel' : '/auth/registar')
       return
     }
-
     if (!utilizador) {
       router.push('/auth/registar')
       return
     }
-
     setCarr(planoId)
     try {
       const r = await fetch('/api/stripe/checkout', {
@@ -128,12 +126,27 @@ export default function Precos() {
     }
   }
 
+  const estiloBotao = (p: typeof PLANOS[0]) => {
+    if (p.destaque) {
+      return {
+        background: 'var(--cor-marca)',
+        color: '#fff',
+        border: 'none',
+      }
+    }
+    return {
+      background: `${p.cor}15`,
+      color: p.cor,
+      border: `1px solid ${p.cor}30`,
+    }
+  }
+
   return (
     <>
       <Head><title>Preços — AdPulse</title></Head>
       <div style={{ minHeight: '100vh', background: 'var(--cor-fundo)', color: 'var(--cor-texto)' }}>
 
-        {/* Navbar simples */}
+        {/* Navbar */}
         <nav style={{ padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--cor-borda)' }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
             <div style={{ width: 32, height: 32, borderRadius: 10, background: 'var(--cor-marca)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -143,17 +156,11 @@ export default function Precos() {
           </Link>
           <div style={{ display: 'flex', gap: 12 }}>
             {utilizador ? (
-              <Link href="/painel" className="btn-primario" style={{ textDecoration: 'none' }}>
-                Ir para o painel
-              </Link>
+              <Link href="/painel" className="btn-primario" style={{ textDecoration: 'none' }}>Ir para o painel</Link>
             ) : (
               <>
-                <Link href="/auth/login" style={{ padding: '8px 16px', borderRadius: 10, color: 'var(--cor-texto-muted)', textDecoration: 'none', fontSize: 14 }}>
-                  Entrar
-                </Link>
-                <Link href="/auth/registar" className="btn-primario" style={{ textDecoration: 'none' }}>
-                  Começar grátis
-                </Link>
+                <Link href="/auth/login" style={{ padding: '8px 16px', borderRadius: 10, color: 'var(--cor-texto-muted)', textDecoration: 'none', fontSize: 14 }}>Entrar</Link>
+                <Link href="/auth/registar" className="btn-primario" style={{ textDecoration: 'none' }}>Começar grátis</Link>
               </>
             )}
           </div>
@@ -161,7 +168,6 @@ export default function Precos() {
 
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '60px 24px' }}>
 
-          {/* Banner sucesso */}
           {sucesso && (
             <div style={{ marginBottom: 32, padding: '16px 24px', borderRadius: 16, background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.3)', display: 'flex', alignItems: 'center', gap: 12 }}>
               <Check size={20} color="#34d399" />
@@ -170,7 +176,6 @@ export default function Precos() {
             </div>
           )}
 
-          {/* Banner cancelado */}
           {cancelado && (
             <div style={{ marginBottom: 32, padding: '16px 24px', borderRadius: 16, background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)' }}>
               <p style={{ color: '#f87171' }}>Pagamento cancelado. Podes tentar novamente quando quiseres.</p>
@@ -190,7 +195,6 @@ export default function Precos() {
               Começa grátis. Faz upgrade quando estiveres pronto para crescer mais rápido.
             </p>
 
-            {/* Toggle mensal/anual */}
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, padding: '6px', borderRadius: 12, background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)' }}>
               <button onClick={() => setAnual(false)}
                 style={{ padding: '6px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, background: !anual ? 'var(--cor-card)' : 'transparent', color: !anual ? 'var(--cor-texto)' : 'var(--cor-texto-muted)' }}>
@@ -204,7 +208,7 @@ export default function Precos() {
             </div>
           </div>
 
-          {/* Cards de preços */}
+          {/* Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24, marginBottom: 80 }}>
             {PLANOS.map(p => (
               <div key={p.id} style={{
@@ -220,14 +224,12 @@ export default function Precos() {
                   </div>
                 )}
 
-                {/* Header do plano */}
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 28, marginBottom: 8 }}>{p.icone}</div>
                   <h3 style={{ fontFamily: 'var(--fonte-display)', fontSize: 20, fontWeight: 700, marginBottom: 4, color: p.cor }}>{p.nome}</h3>
                   <p style={{ fontSize: 13, color: 'var(--cor-texto-muted)' }}>{p.descricao}</p>
                 </div>
 
-                {/* Preço */}
                 <div style={{ marginBottom: 24 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                     <span style={{ fontSize: 42, fontWeight: 800, fontFamily: 'var(--fonte-display)', color: p.cor }}>
@@ -242,18 +244,17 @@ export default function Precos() {
                   )}
                 </div>
 
-                {/* Botão */}
                 <button
                   onClick={() => fazerCheckout(p.id)}
                   disabled={carregando === p.id}
                   style={{
-                    width: '100%', padding: '12px', borderRadius: 12, border: 'none',
-                    background: p.destaque ? 'var(--cor-marca)' : `${p.cor}15`,
-                    color: p.destaque ? '#fff' : p.cor,
-                    fontSize: 14, fontWeight: 600, cursor: carregando === p.id ? 'not-allowed' : 'pointer',
+                    width: '100%', padding: '12px', borderRadius: 12,
+                    fontSize: 14, fontWeight: 600,
+                    cursor: carregando === p.id ? 'not-allowed' : 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    marginBottom: 24, opacity: carregando === p.id ? 0.7 : 1,
-                    border: p.destaque ? 'none' : `1px solid ${p.cor}30`,
+                    marginBottom: 24,
+                    opacity: carregando === p.id ? 0.7 : 1,
+                    ...estiloBotao(p),
                   }}>
                   {carregando === p.id
                     ? <><Loader size={14} className="animate-spin" /> A processar...</>
@@ -261,15 +262,11 @@ export default function Precos() {
                   }
                 </button>
 
-                {/* Funcionalidades */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {p.funcionalidades.map((f, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: f.incluido ? `${p.cor}15` : 'transparent' }}>
-                        {f.incluido
-                          ? <Check size={11} color={p.cor} />
-                          : <X size={11} color="var(--cor-texto-fraco)" />
-                        }
+                        {f.incluido ? <Check size={11} color={p.cor} /> : <X size={11} color="var(--cor-texto-fraco)" />}
                       </div>
                       <span style={{ fontSize: 13, color: f.incluido ? 'var(--cor-texto)' : 'var(--cor-texto-fraco)' }}>{f.texto}</span>
                     </div>
@@ -307,7 +304,7 @@ export default function Precos() {
             </div>
           </div>
 
-          {/* FAQ */}
+          {/* CTA final */}
           <div style={{ textAlign: 'center', padding: '40px', borderRadius: 24, background: 'var(--cor-card)', border: '1px solid var(--cor-borda)' }}>
             <h2 style={{ fontFamily: 'var(--fonte-display)', fontSize: 24, fontWeight: 700, marginBottom: 8 }}>
               Ainda tens dúvidas?
@@ -315,8 +312,7 @@ export default function Precos() {
             <p style={{ color: 'var(--cor-texto-muted)', marginBottom: 20 }}>
               Fala com o nosso agente de suporte — responde em segundos.
             </p>
-            <Link href="/painel/agentes/atendimento"
-              className="btn-primario"
+            <Link href="/painel/agentes/atendimento" className="btn-primario"
               style={{ textDecoration: 'none', display: 'inline-flex' }}>
               Falar com suporte <ArrowRight size={16} />
             </Link>
