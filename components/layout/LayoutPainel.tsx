@@ -2,7 +2,7 @@
 // AdPulse — Layout do Painel (Sidebar + Topbar)
 // ============================================
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
@@ -12,21 +12,28 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { fazerLogout } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 import ChatWidget from '@/components/ChatWidget'
 
 const ITENS_NAV = [
-  { label: 'Dashboard',         href: '/painel',             icone: LayoutDashboard },
-  { label: 'AI Content Studio', href: '/painel/studio',      icone: Sparkles        },
-  { label: 'Calendário',        href: '/painel/calendario',  icone: CalendarDays    },
-  { label: 'Biblioteca de Média', href: '/painel/media',     icone: ImageIcon       },
-  { label: 'Viral Lab',         href: '/painel/viral-lab',   icone: TrendingUp      },
-  { label: 'Creator Analyzer',  href: '/painel/analyzer',    icone: BarChart2       },
-  { label: 'Campanhas',         href: '/painel/campanhas',   icone: FolderOpen      },
-  { label: 'Automação',         href: '/painel/automacao',   icone: Workflow        },
-  { label: 'Workspaces',        href: '/painel/workspaces',  icone: Layers          },
-  { label: 'Agentes IA',        href: '/painel/agentes',     icone: Bot             },
-  { label: 'Perfil',            href: '/painel/perfil',      icone: UserCircle      },
+  { label: 'Dashboard',           href: '/painel',             icone: LayoutDashboard },
+  { label: 'AI Content Studio',   href: '/painel/studio',      icone: Sparkles        },
+  { label: 'Calendário',          href: '/painel/calendario',  icone: CalendarDays    },
+  { label: 'Biblioteca de Média', href: '/painel/media',       icone: ImageIcon       },
+  { label: 'Viral Lab',           href: '/painel/viral-lab',   icone: TrendingUp      },
+  { label: 'Creator Analyzer',    href: '/painel/analyzer',    icone: BarChart2       },
+  { label: 'Campanhas',           href: '/painel/campanhas',   icone: FolderOpen      },
+  { label: 'Automação',           href: '/painel/automacao',   icone: Workflow        },
+  { label: 'Workspaces',          href: '/painel/workspaces',  icone: Layers          },
+  { label: 'Agentes IA',          href: '/painel/agentes',     icone: Bot             },
+  { label: 'Perfil',              href: '/painel/perfil',      icone: UserCircle      },
 ]
+
+const COR_PLANO: Record<string, string> = {
+  gratuito: 'var(--cor-marca)',
+  pro:      '#fbbf24',
+  agencia:  '#c084fc',
+}
 
 type Props = {
   children: React.ReactNode
@@ -37,6 +44,20 @@ export default function LayoutPainel({ children, titulo }: Props) {
   const { utilizador } = useAuth()
   const router = useRouter()
   const [sidebarAberta, setSidebarAberta] = useState(false)
+  const [plano, setPlano] = useState('gratuito')
+
+  useEffect(() => {
+    if (!utilizador) return
+    const carregarPlano = async () => {
+      const { data } = await supabase
+        .from('perfis')
+        .select('plano')
+        .eq('id', utilizador.id)
+        .single()
+      if (data?.plano) setPlano(data.plano)
+    }
+    carregarPlano()
+  }, [utilizador])
 
   const aoFazerLogout = async () => {
     await fazerLogout()
@@ -107,16 +128,23 @@ export default function LayoutPainel({ children, titulo }: Props) {
 
         <div className="p-4" style={{ borderTop: '1px solid var(--cor-borda)' }}>
           <div className="flex items-center justify-between mb-4 px-3 py-2 rounded-xl"
-            style={{ background: 'rgba(124, 123, 250, 0.08)', border: '1px solid rgba(124, 123, 250, 0.15)' }}>
+            style={{ background: `${COR_PLANO[plano]}12`, border: `1px solid ${COR_PLANO[plano]}25` }}>
             <div>
-              <p className="text-xs font-medium" style={{ color: 'var(--cor-marca)' }}>Plano Gratuito</p>
-              <p className="text-xs" style={{ color: 'var(--cor-texto-fraco)' }}>3 gerações/dia</p>
+              <p className="text-xs font-medium capitalize" style={{ color: COR_PLANO[plano] }}>
+                Plano {plano.charAt(0).toUpperCase() + plano.slice(1)}
+              </p>
+              <p className="text-xs" style={{ color: 'var(--cor-texto-fraco)' }}>
+                {plano === 'gratuito' ? '3 gerações/dia' : plano === 'pro' ? 'Gerações ilimitadas' : 'Multi-cliente'}
+              </p>
             </div>
-            <Link href="/precos" className="text-xs font-medium px-2 py-1 rounded-lg"
-              style={{ background: 'var(--cor-marca)', color: '#fff' }}>
-              Pro
-            </Link>
+            {plano === 'gratuito' && (
+              <Link href="/precos" className="text-xs font-medium px-2 py-1 rounded-lg"
+                style={{ background: 'var(--cor-marca)', color: '#fff' }}>
+                Pro
+              </Link>
+            )}
           </div>
+
           <div className="flex items-center gap-3">
             <Link href="/painel/perfil"
               className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 transition-opacity hover:opacity-80"
