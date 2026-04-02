@@ -6,11 +6,8 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20',
-})
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
-// Cliente Supabase com permissões de admin
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -46,13 +43,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ erro: `Webhook Error: ${err.message}` })
   }
 
-  // Processar eventos
   switch (evento.type) {
 
     case 'checkout.session.completed': {
       const session = evento.data.object as Stripe.Checkout.Session
       const { utilizadorId, plano } = session.metadata || {}
-
       if (utilizadorId && plano) {
         await supabase.from('perfis').update({ plano }).eq('id', utilizadorId)
         console.log(`✅ Plano ${plano} ativado para ${utilizadorId}`)
@@ -63,8 +58,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     case 'customer.subscription.deleted': {
       const subscription = evento.data.object as Stripe.Subscription
       const customerId = subscription.customer as string
-
-      // Volta ao plano gratuito
       const customer = await stripe.customers.retrieve(customerId) as Stripe.Customer
       if (customer.email) {
         await supabase.from('perfis').update({ plano: 'gratuito' }).eq('email', customer.email)
