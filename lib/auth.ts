@@ -1,7 +1,6 @@
 // ============================================
 // AdPulse — Funções de Autenticação
 // ============================================
-
 import { supabase } from './supabase'
 
 // Fazer login com email e password
@@ -10,7 +9,6 @@ export async function fazerLogin(email: string, password: string) {
     email,
     password,
   })
-
   if (error) throw new Error(error.message)
   return data
 }
@@ -21,19 +19,21 @@ export async function criarConta(email: string, password: string, nome: string) 
     email,
     password,
     options: {
-      data: { nome },  // guarda o nome nos metadados do utilizador
+      data: { nome },
     },
   })
-
   if (error) throw new Error(error.message)
 
-  // Se criou conta, criar perfil na tabela 'perfis'
+  // Criar perfil com todas as colunas necessárias
   if (data.user) {
-    await supabase.from('perfis').insert({
+    await supabase.from('perfis').upsert({
       id: data.user.id,
       email: data.user.email,
       nome,
       plano: 'gratuito',
+      nichos: [],
+      plataformas_principais: [],
+      onboarding_completo: false,
     })
   }
 
@@ -59,24 +59,20 @@ export async function verificarLimiteGeracoes(utilizadorId: string): Promise<{
   geracoesHoje: number
   limiteMaximo: number
 }> {
-  // Data de hoje no formato YYYY-MM-DD
   const hoje = new Date().toISOString().split('T')[0]
 
-  // Contar gerações feitas hoje
   const { count } = await supabase
     .from('geracoes_ai')
     .select('*', { count: 'exact', head: true })
     .eq('utilizador_id', utilizadorId)
     .eq('data_geracao', hoje)
 
-  // Buscar plano do utilizador
   const { data: perfil } = await supabase
     .from('perfis')
     .select('plano')
     .eq('id', utilizadorId)
     .single()
 
-  // Limites por plano
   const limites = {
     gratuito: 3,
     pro:      999,

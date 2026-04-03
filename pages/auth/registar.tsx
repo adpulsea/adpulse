@@ -1,4 +1,6 @@
-// ============================================
+Tens razão! Vamos primeiro atualizar o registar.tsx para criar o perfil manualmente após o registo. Aqui está o código completo:
+C:\adpulse\pages\auth\registar.tsx
+tsx// ============================================
 // AdPulse — Página de Registo
 // ============================================
 
@@ -8,6 +10,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/router'
 import { Zap, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react'
 import { criarConta } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 
 export default function PaginaRegistar() {
   const router = useRouter()
@@ -28,8 +31,22 @@ export default function PaginaRegistar() {
     if (password.length < 8) { setErro('A password deve ter pelo menos 8 caracteres.'); return }
     setCarregando(true)
     try {
-      await criarConta(email, password, nome)
-      // Enviar email de boas-vindas (não bloqueia o registo se falhar)
+      const { data } = await criarConta(email, password, nome)
+
+      // Criar perfil manualmente
+      if (data?.user) {
+        await supabase.from('perfis').upsert({
+          id: data.user.id,
+          email,
+          nome: nome || email.split('@')[0],
+          plano: 'gratuito',
+          nichos: [],
+          plataformas_principais: [],
+          onboarding_completo: false,
+        })
+      }
+
+      // Enviar email de boas-vindas (não bloqueia se falhar)
       try {
         await fetch('/api/email-boas-vindas', {
           method: 'POST',
@@ -37,6 +54,7 @@ export default function PaginaRegistar() {
           body: JSON.stringify({ email, nome }),
         })
       } catch { /* silencioso */ }
+
       setSucesso(true)
     } catch (err: unknown) {
       if (err instanceof Error) {
