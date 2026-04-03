@@ -1,82 +1,63 @@
 // ============================================
-// AdPulse — Dashboard Principal
+// AdPulse — Dashboard Principal (dados reais)
 // ============================================
 
 import Head from 'next/head'
-import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/router'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
-  TrendingUp, Users, Zap, Eye,
-  ArrowUpRight, ArrowDownRight, Plus,
-  Sparkles, TrendingDown, Bell, ChevronRight
+  TrendingUp, Zap, Eye, ArrowUpRight, ArrowDownRight,
+  Plus, Sparkles, ChevronRight, Send, FileText,
+  Calendar, Image as ImageIcon
 } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/lib/supabase'
 
-// ---- Dados simulados (substituir por Supabase) ----
-
-const METRICAS = [
-  { titulo: 'Conteúdos gerados', valor: '47', variacao: 23, icone: Zap,        cor: '#7c7bfa' },
-  { titulo: 'Alcance estimado',  valor: '12.4k', variacao: 18, icone: Eye,     cor: '#c084fc' },
-  { titulo: 'Campanhas ativas',  valor: '3',   variacao: 0,  icone: TrendingUp,cor: '#34d399' },
-  { titulo: 'Score médio viral', valor: '74',  variacao: -5, icone: Users,     cor: '#fbbf24' },
-]
-
-const ALERTAS = [
-  { tipo: 'tendencia', mensagem: '🔥 "POV" e "dia na vida" estão em alta no TikTok hoje', acao: 'Criar conteúdo', rota: '/painel/studio' },
-  { tipo: 'sugestao',  mensagem: '💡 Óptima hora para publicar no Instagram — engagement 40% acima da média', acao: null, rota: null },
-  { tipo: 'aviso',     mensagem: '⚠️ Usaste 2 das 3 gerações grátis de hoje', acao: 'Fazer upgrade', rota: '/precos' },
-]
-
-const CALENDÁRIO_SEMANA = [
-  { dia: 'Seg', hora: '09:00', tipo: 'Reel',     titulo: 'Dica rápida de produtividade', vazio: false },
-  { dia: 'Ter', hora: '11:00', tipo: null,        titulo: null,                           vazio: true  },
-  { dia: 'Qua', hora: '18:00', tipo: 'Carrossel', titulo: '5 erros a evitar em 2025',    vazio: false },
-  { dia: 'Qui', hora: '10:00', tipo: null,        titulo: null,                           vazio: true  },
-  { dia: 'Sex', hora: '19:00', tipo: 'Story',     titulo: 'Bastidores da semana',         vazio: false },
-  { dia: 'Sáb', hora: '12:00', tipo: 'Post',      titulo: 'Reflexão semanal',             vazio: false },
-  { dia: 'Dom', hora: null,    tipo: null,         titulo: null,                           vazio: true  },
-]
-
-const SUGESTOES_IA = [
-  { titulo: 'Tendência: "Rotina da manhã"', descricao: 'Alto engagement esta semana no seu nicho', score: 92 },
-  { titulo: '"O erro que me custou 1000€"', descricao: 'Hooks de erro pessoal têm 3x mais partilhas', score: 87 },
-  { titulo: 'Tutorial passo-a-passo curto', descricao: 'Reels de tutorial entre 30-45s estão a viralizar', score: 81 },
-]
-
-// Dados do gráfico de crescimento (30 dias simulados)
-function gerarDadosCrescimento() {
-  const dados = []
-  let base = 1200
-  for (let i = 0; i < 30; i++) {
-    base += Math.floor(Math.random() * 120) - 20
-    dados.push(Math.max(base, 1000))
-  }
-  return dados
+// ---- Tipos ----
+type Metricas = {
+  totalGeracoes: number
+  geracoesHoje: number
+  totalPosts: number
+  postsPublicados: number
+  postsAgendados: number
+  totalCampanhas: number
+  totalFicheiros: number
+  plano: string
 }
 
-// Componente do gráfico SVG simples (sem dependências)
-function GraficoCrescimento() {
-  const dados = gerarDadosCrescimento()
-  const max = Math.max(...dados)
-  const min = Math.min(...dados)
-  const h = 120
-  const w = 600
-  const pad = 10
+type PostSemana = {
+  id: string
+  titulo: string
+  formato: string
+  hora_publicacao?: string
+  estado: string
+  plataforma: string
+  criado_em: string
+  dia: number
+}
 
-  // Converter dados em pontos do SVG
+// ---- Gráfico SVG ----
+function GraficoCrescimento({ dados }: { dados: number[] }) {
+  if (dados.length === 0) return null
+  const max = Math.max(...dados, 1)
+  const min = Math.min(...dados, 0)
+  const h = 120, w = 600, pad = 10
+
   const pontos = dados.map((v, i) => {
-    const x = pad + (i / (dados.length - 1)) * (w - pad * 2)
-    const y = pad + ((max - v) / (max - min)) * (h - pad * 2)
+    const x = pad + (i / Math.max(dados.length - 1, 1)) * (w - pad * 2)
+    const y = pad + ((max - v) / Math.max(max - min, 1)) * (h - pad * 2)
     return `${x},${y}`
   })
 
   const caminhoLinha = `M ${pontos.join(' L ')}`
   const caminhoArea = `M ${pontos[0]} L ${pontos.join(' L ')} L ${w - pad},${h} L ${pad},${h} Z`
-
   const ultimoX = parseFloat(pontos[pontos.length - 1].split(',')[0])
   const ultimoY = parseFloat(pontos[pontos.length - 1].split(',')[1])
+
+  const labels = dados.length > 7
+    ? ['Início', '', '', 'Meio', '', '', 'Hoje']
+    : dados.map((_, i) => i === 0 ? 'Início' : i === dados.length - 1 ? 'Hoje' : '')
 
   return (
     <div style={{ width: '100%', overflowX: 'auto' }}>
@@ -87,16 +68,12 @@ function GraficoCrescimento() {
             <stop offset="100%" stopColor="#7c7bfa" stopOpacity="0"/>
           </linearGradient>
         </defs>
-        {/* Área preenchida */}
         <path d={caminhoArea} fill="url(#gradArea)" />
-        {/* Linha principal */}
         <path d={caminhoLinha} fill="none" stroke="#7c7bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        {/* Ponto final */}
         <circle cx={ultimoX} cy={ultimoY} r="4" fill="#7c7bfa" />
         <circle cx={ultimoX} cy={ultimoY} r="8" fill="#7c7bfa" fillOpacity="0.2"/>
-        {/* Labels eixo X */}
-        {['1 Mar', '10 Mar', '20 Mar', 'Hoje'].map((label, i) => (
-          <text key={label} x={pad + (i / 3) * (w - pad * 2)} y={h + 16}
+        {['Início', 'Meio', 'Hoje'].map((label, i) => (
+          <text key={label} x={pad + (i / 2) * (w - pad * 2)} y={h + 16}
             textAnchor="middle" fontSize="10" fill="var(--cor-texto-fraco)"
             fontFamily="var(--fonte-corpo)">
             {label}
@@ -107,10 +84,98 @@ function GraficoCrescimento() {
   )
 }
 
+const DIAS_SEMANA_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+const COR_TIPO: Record<string, string> = {
+  Reel: '#7c7bfa', Carrossel: '#c084fc', Story: '#f472b6', Post: '#34d399', Short: '#fbbf24',
+}
+
 export default function Dashboard() {
   const { utilizador } = useAuth()
+  const [metricas, setMetricas]     = useState<Metricas | null>(null)
+  const [postsSemana, setPostsSem]  = useState<PostSemana[]>([])
+  const [geracoesDias, setGerDias]  = useState<number[]>([])
+  const [carregando, setCarr]       = useState(true)
+
   const nomeUtilizador = utilizador?.user_metadata?.nome
     || utilizador?.email?.split('@')[0] || 'criador'
+
+  useEffect(() => {
+    if (!utilizador) return
+
+    const carregar = async () => {
+      setCarr(true)
+      const hoje = new Date()
+      const inicioHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).toISOString()
+      const inicio30Dias = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 30).toISOString()
+      const inicioSemana = new Date(hoje)
+      inicioSemana.setDate(hoje.getDate() - hoje.getDay())
+      inicioSemana.setHours(0, 0, 0, 0)
+      const fimSemana = new Date(inicioSemana)
+      fimSemana.setDate(inicioSemana.getDate() + 6)
+      fimSemana.setHours(23, 59, 59, 999)
+
+      // Carregar tudo em paralelo
+      const [
+        { count: totalGeracoes },
+        { count: geracoesHoje },
+        { count: totalPosts },
+        { count: postsPublicados },
+        { count: postsAgendados },
+        { count: totalCampanhas },
+        { count: totalFicheiros },
+        { data: perfilData },
+        { data: postsSemanaData },
+        { data: geracoesData },
+      ] = await Promise.all([
+        supabase.from('geracoes_ai').select('*', { count: 'exact', head: true }).eq('utilizador_id', utilizador.id),
+        supabase.from('geracoes_ai').select('*', { count: 'exact', head: true }).eq('utilizador_id', utilizador.id).gte('criado_em', inicioHoje),
+        supabase.from('posts').select('*', { count: 'exact', head: true }).eq('utilizador_id', utilizador.id),
+        supabase.from('posts').select('*', { count: 'exact', head: true }).eq('utilizador_id', utilizador.id).eq('estado', 'publicado'),
+        supabase.from('posts').select('*', { count: 'exact', head: true }).eq('utilizador_id', utilizador.id).eq('estado', 'agendado'),
+        supabase.from('campanhas').select('*', { count: 'exact', head: true }).eq('utilizador_id', utilizador.id),
+        supabase.from('ficheiros_media').select('*', { count: 'exact', head: true }).eq('utilizador_id', utilizador.id),
+        supabase.from('perfis').select('plano').eq('id', utilizador.id).single(),
+        supabase.from('posts').select('*').eq('utilizador_id', utilizador.id).gte('criado_em', inicioSemana.toISOString()).lte('criado_em', fimSemana.toISOString()),
+        supabase.from('geracoes_ai').select('criado_em').eq('utilizador_id', utilizador.id).gte('criado_em', inicio30Dias).order('criado_em'),
+      ])
+
+      setMetricas({
+        totalGeracoes: totalGeracoes || 0,
+        geracoesHoje: geracoesHoje || 0,
+        totalPosts: totalPosts || 0,
+        postsPublicados: postsPublicados || 0,
+        postsAgendados: postsAgendados || 0,
+        totalCampanhas: totalCampanhas || 0,
+        totalFicheiros: totalFicheiros || 0,
+        plano: perfilData?.plano || 'gratuito',
+      })
+
+      // Posts da semana com dia da semana
+      if (postsSemanaData) {
+        setPostsSem(postsSemanaData.map(p => ({
+          ...p,
+          dia: new Date(p.criado_em).getDay(),
+        })))
+      }
+
+      // Gráfico — gerações por dia nos últimos 30 dias
+      if (geracoesData) {
+        const contagem: Record<string, number> = {}
+        geracoesData.forEach(g => {
+          const dia = new Date(g.criado_em).toLocaleDateString('pt-PT')
+          contagem[dia] = (contagem[dia] || 0) + 1
+        })
+        setGerDias(Object.values(contagem))
+      }
+
+      setCarr(false)
+    }
+
+    carregar()
+  }, [utilizador])
+
+  const limiteGeracoes = metricas?.plano === 'gratuito' ? 3 : 999
+  const geracoesRestantes = Math.max(0, limiteGeracoes - (metricas?.geracoesHoje || 0))
 
   return (
     <>
@@ -118,7 +183,7 @@ export default function Dashboard() {
       <LayoutPainel titulo="Dashboard">
         <div className="max-w-6xl mx-auto space-y-6">
 
-          {/* ---- Saudação ---- */}
+          {/* Saudação */}
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold" style={{ fontFamily: 'var(--fonte-display)' }}>
@@ -129,36 +194,81 @@ export default function Dashboard() {
               </p>
             </div>
             <Link href="/painel/studio" className="btn-primario hidden sm:inline-flex">
-              <Sparkles size={16} />
-              Criar conteúdo
+              <Sparkles size={16} /> Criar conteúdo
             </Link>
           </div>
 
-          {/* ---- Barra de alertas IA ---- */}
+          {/* Alertas dinâmicos */}
           <div className="flex flex-col gap-2">
-            {ALERTAS.map((alerta, i) => (
-              <div key={i} className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl text-sm"
-                style={{
-                  background: alerta.tipo === 'aviso' ? 'rgba(251,191,36,0.08)' : 'rgba(124,123,250,0.08)',
-                  border: `1px solid ${alerta.tipo === 'aviso' ? 'rgba(251,191,36,0.2)' : 'rgba(124,123,250,0.15)'}`,
-                }}>
-                <span style={{ color: 'var(--cor-texto-muted)' }}>{alerta.mensagem}</span>
-                {alerta.acao && (
-                  <Link href={alerta.rota!} className="text-xs font-medium whitespace-nowrap flex items-center gap-1"
-                    style={{ color: 'var(--cor-marca)' }}>
-                    {alerta.acao} <ChevronRight size={12} />
-                  </Link>
-                )}
+            {metricas?.plano === 'gratuito' && metricas.geracoesHoje >= 2 && (
+              <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl text-sm"
+                style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                <span style={{ color: 'var(--cor-texto-muted)' }}>
+                  ⚠️ Usaste {metricas.geracoesHoje} das {limiteGeracoes} gerações grátis de hoje
+                </span>
+                <Link href="/precos" className="text-xs font-medium whitespace-nowrap flex items-center gap-1"
+                  style={{ color: 'var(--cor-marca)' }}>
+                  Fazer upgrade <ChevronRight size={12} />
+                </Link>
               </div>
-            ))}
+            )}
+            {(metricas?.postsAgendados || 0) > 0 && (
+              <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl text-sm"
+                style={{ background: 'rgba(124,123,250,0.08)', border: '1px solid rgba(124,123,250,0.15)' }}>
+                <span style={{ color: 'var(--cor-texto-muted)' }}>
+                  📅 Tens {metricas?.postsAgendados} {metricas?.postsAgendados === 1 ? 'post agendado' : 'posts agendados'} — não te esqueças de publicar!
+                </span>
+                <Link href="/painel/calendario" className="text-xs font-medium whitespace-nowrap flex items-center gap-1"
+                  style={{ color: 'var(--cor-marca)' }}>
+                  Ver calendário <ChevronRight size={12} />
+                </Link>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl text-sm"
+              style={{ background: 'rgba(124,123,250,0.08)', border: '1px solid rgba(124,123,250,0.15)' }}>
+              <span style={{ color: 'var(--cor-texto-muted)' }}>
+                🔥 "POV" e "dia na vida" estão em alta no TikTok hoje
+              </span>
+              <Link href="/painel/studio" className="text-xs font-medium whitespace-nowrap flex items-center gap-1"
+                style={{ color: 'var(--cor-marca)' }}>
+                Criar conteúdo <ChevronRight size={12} />
+              </Link>
+            </div>
           </div>
 
-          {/* ---- 4 Métricas ---- */}
+          {/* Métricas reais */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {METRICAS.map((m) => {
+            {[
+              {
+                titulo: 'Conteúdos gerados',
+                valor: carregando ? '...' : metricas?.totalGeracoes.toString() || '0',
+                sub: `${metricas?.geracoesHoje || 0} hoje`,
+                icone: Zap, cor: '#7c7bfa',
+                variacao: metricas && metricas.geracoesHoje > 0 ? metricas.geracoesHoje : 0,
+              },
+              {
+                titulo: 'Posts criados',
+                valor: carregando ? '...' : metricas?.totalPosts.toString() || '0',
+                sub: `${metricas?.postsPublicados || 0} publicados`,
+                icone: FileText, cor: '#c084fc',
+                variacao: metricas?.postsPublicados || 0,
+              },
+              {
+                titulo: 'Posts agendados',
+                valor: carregando ? '...' : metricas?.postsAgendados.toString() || '0',
+                sub: 'para publicar',
+                icone: Calendar, cor: '#34d399',
+                variacao: 0,
+              },
+              {
+                titulo: 'Ficheiros na biblioteca',
+                valor: carregando ? '...' : metricas?.totalFicheiros.toString() || '0',
+                sub: 'imagens e vídeos',
+                icone: ImageIcon, cor: '#fbbf24',
+                variacao: 0,
+              },
+            ].map((m) => {
               const Icone = m.icone
-              const subiu = m.variacao > 0
-              const igual = m.variacao === 0
               return (
                 <div key={m.titulo} className="card">
                   <div className="flex items-start justify-between mb-3">
@@ -166,106 +276,125 @@ export default function Dashboard() {
                       style={{ background: `${m.cor}18`, border: `1px solid ${m.cor}30` }}>
                       <Icone size={18} style={{ color: m.cor }} />
                     </div>
-                    {!igual && (
-                      <div className="flex items-center gap-1 text-xs font-medium"
-                        style={{ color: subiu ? 'var(--cor-sucesso)' : 'var(--cor-erro)' }}>
-                        {subiu ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                        {Math.abs(m.variacao)}%
+                    {m.variacao > 0 && (
+                      <div className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--cor-sucesso)' }}>
+                        <ArrowUpRight size={14} /> {m.variacao}
                       </div>
                     )}
                   </div>
-                  <p className="text-2xl font-bold mb-1" style={{ fontFamily: 'var(--fonte-display)' }}>
-                    {m.valor}
-                  </p>
+                  <p className="text-2xl font-bold mb-1" style={{ fontFamily: 'var(--fonte-display)' }}>{m.valor}</p>
                   <p className="text-xs" style={{ color: 'var(--cor-texto-muted)' }}>{m.titulo}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--cor-texto-fraco)' }}>{m.sub}</p>
                 </div>
               )
             })}
           </div>
 
-          {/* ---- Gráfico + Breakdown plataforma ---- */}
+          {/* Gráfico + Ações rápidas */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-            {/* Gráfico crescimento */}
+            {/* Gráfico de gerações */}
             <div className="card lg:col-span-2">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold" style={{ fontFamily: 'var(--fonte-display)' }}>
-                  Crescimento de seguidores
+                  Gerações de conteúdo
                 </h3>
                 <span className="badge-marca text-xs">Últimos 30 dias</span>
               </div>
-              <GraficoCrescimento />
+              {geracoesDias.length > 0 ? (
+                <GraficoCrescimento dados={geracoesDias} />
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <Zap size={28} style={{ color: 'var(--cor-texto-fraco)', marginBottom: 8, opacity: 0.3 }} />
+                  <p className="text-sm" style={{ color: 'var(--cor-texto-muted)' }}>
+                    Ainda não geraste conteúdo
+                  </p>
+                  <Link href="/painel/studio" className="btn-primario mt-4 text-xs">
+                    <Sparkles size={14} /> Gerar agora
+                  </Link>
+                </div>
+              )}
             </div>
 
-            {/* Breakdown por plataforma */}
+            {/* Ações rápidas */}
             <div className="card">
               <h3 className="font-semibold mb-4" style={{ fontFamily: 'var(--fonte-display)' }}>
-                Por plataforma
+                Ações rápidas
               </h3>
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
                 {[
-                  { nome: 'Instagram', seguidores: '8.2k', pct: 66, cor: '#c084fc' },
-                  { nome: 'TikTok',    seguidores: '3.1k', pct: 25, cor: '#fb7185' },
-                  { nome: 'YouTube',   seguidores: '1.1k', pct: 9,  cor: '#fbbf24' },
-                ].map((p) => (
-                  <div key={p.nome}>
-                    <div className="flex items-center justify-between mb-1.5 text-sm">
-                      <span>{p.nome}</span>
-                      <span style={{ color: 'var(--cor-texto-muted)' }}>{p.seguidores}</span>
-                    </div>
-                    <div className="h-2 rounded-full" style={{ background: 'var(--cor-borda)' }}>
-                      <div className="h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${p.pct}%`, background: p.cor }} />
-                    </div>
-                  </div>
-                ))}
+                  { label: 'Gerar conteúdo com IA', href: '/painel/studio', icone: Sparkles, cor: '#7c7bfa' },
+                  { label: 'Ver calendário', href: '/painel/calendario', icone: Calendar, cor: '#34d399' },
+                  { label: 'Carregar imagens', href: '/painel/media', icone: ImageIcon, cor: '#fbbf24' },
+                  { label: 'Ver Viral Lab', href: '/painel/viral-lab', icone: TrendingUp, cor: '#c084fc' },
+                ].map(a => {
+                  const Icone = a.icone
+                  return (
+                    <Link key={a.href} href={a.href}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all"
+                      style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)', color: 'var(--cor-texto-muted)', textDecoration: 'none' }}
+                      onMouseOver={e => { (e.currentTarget as HTMLElement).style.borderColor = a.cor + '50'; (e.currentTarget as HTMLElement).style.color = a.cor }}
+                      onMouseOut={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--cor-borda)'; (e.currentTarget as HTMLElement).style.color = 'var(--cor-texto-muted)' }}>
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ background: `${a.cor}15` }}>
+                        <Icone size={14} style={{ color: a.cor }} />
+                      </div>
+                      <span className="flex-1">{a.label}</span>
+                      <ChevronRight size={14} />
+                    </Link>
+                  )
+                })}
               </div>
             </div>
           </div>
 
-          {/* ---- Calendário semanal + Sugestões IA ---- */}
+          {/* Calendário da semana + Sugestões */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-            {/* Calendário */}
+            {/* Calendário semana real */}
             <div className="card lg:col-span-2">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold" style={{ fontFamily: 'var(--fonte-display)' }}>
                   Calendário desta semana
                 </h3>
+                <Link href="/painel/calendario" className="text-xs flex items-center gap-1"
+                  style={{ color: 'var(--cor-marca)' }}>
+                  Ver tudo <ChevronRight size={12} />
+                </Link>
               </div>
               <div className="grid grid-cols-7 gap-2">
-                {CALENDÁRIO_SEMANA.map((item) => (
-                  <div key={item.dia} className="text-center">
-                    <p className="text-xs mb-2 font-medium" style={{ color: 'var(--cor-texto-muted)' }}>
-                      {item.dia}
-                    </p>
-                    {item.vazio ? (
-                      <Link href="/painel/studio">
-                        <div className="aspect-square rounded-xl flex items-center justify-center text-xs cursor-pointer transition-all duration-150 hover:scale-105"
-                          style={{
-                            border: '1px dashed var(--cor-borda-clara)',
-                            color: 'var(--cor-texto-fraco)',
-                          }}>
-                          <Plus size={14} />
+                {DIAS_SEMANA_LABELS.map((dia, i) => {
+                  const postsDia = postsSemana.filter(p => p.dia === i)
+                  return (
+                    <div key={dia} className="text-center">
+                      <p className="text-xs mb-2 font-medium" style={{ color: 'var(--cor-texto-muted)' }}>{dia}</p>
+                      {postsDia.length > 0 ? (
+                        <div className="flex flex-col gap-1">
+                          {postsDia.slice(0, 2).map(p => (
+                            <Link key={p.id} href={`/painel/publicar?id=${p.id}`}>
+                              <div className="aspect-square rounded-xl flex flex-col items-center justify-center p-1 gap-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+                                style={{ background: `${COR_TIPO[p.formato] || '#7c7bfa'}20`, border: `1px solid ${COR_TIPO[p.formato] || '#7c7bfa'}40` }}>
+                                <span className="font-bold" style={{ color: COR_TIPO[p.formato] || '#7c7bfa', fontSize: 8 }}>{p.formato}</span>
+                                <span style={{ color: 'var(--cor-texto-fraco)', fontSize: 8 }}>{p.hora_publicacao || '--:--'}</span>
+                              </div>
+                            </Link>
+                          ))}
                         </div>
-                      </Link>
-                    ) : (
-                      <div className="aspect-square rounded-xl flex flex-col items-center justify-center p-1 gap-0.5"
-                        style={{ background: 'rgba(124,123,250,0.12)', border: '1px solid rgba(124,123,250,0.2)' }}>
-                        <span className="text-xs font-bold" style={{ color: 'var(--cor-marca)', fontSize: '9px' }}>
-                          {item.tipo}
-                        </span>
-                        <span className="text-xs" style={{ color: 'var(--cor-texto-fraco)', fontSize: '9px' }}>
-                          {item.hora}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      ) : (
+                        <Link href="/painel/calendario">
+                          <div className="aspect-square rounded-xl flex items-center justify-center text-xs cursor-pointer transition-all hover:scale-105"
+                            style={{ border: '1px dashed var(--cor-borda-clara)', color: 'var(--cor-texto-fraco)' }}>
+                            <Plus size={14} />
+                          </div>
+                        </Link>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
-            {/* Sugestões da IA */}
+            {/* Sugestões IA */}
             <div className="card">
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles size={16} style={{ color: 'var(--cor-marca)' }} />
@@ -274,9 +403,13 @@ export default function Dashboard() {
                 </h3>
               </div>
               <div className="flex flex-col gap-3">
-                {SUGESTOES_IA.map((s, i) => (
-                  <Link key={i} href="/painel/viral-lab">
-                    <div className="p-3 rounded-xl cursor-pointer transition-all duration-150 hover:scale-[1.01]"
+                {[
+                  { titulo: 'Tendência: "Rotina da manhã"', descricao: 'Alto engagement esta semana no seu nicho', score: 92 },
+                  { titulo: '"O erro que me custou 1000€"', descricao: 'Hooks de erro pessoal têm 3x mais partilhas', score: 87 },
+                  { titulo: 'Tutorial passo-a-passo curto', descricao: 'Reels de tutorial entre 30-45s estão a viralizar', score: 81 },
+                ].map((s, i) => (
+                  <Link key={i} href="/painel/viral-lab" style={{ textDecoration: 'none' }}>
+                    <div className="p-3 rounded-xl cursor-pointer transition-all hover:scale-[1.01]"
                       style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)' }}>
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <p className="text-sm font-medium leading-tight">{s.titulo}</p>
