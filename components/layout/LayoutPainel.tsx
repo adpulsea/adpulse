@@ -8,12 +8,13 @@ import { useRouter } from 'next/router'
 import {
   Zap, LayoutDashboard, Sparkles, TrendingUp,
   BarChart2, FolderOpen, Menu, X, LogOut,
-  ChevronRight, Bell, CalendarDays, Bot, Workflow, UserCircle, Layers, ImageIcon
+  ChevronRight, CalendarDays, Bot, Workflow, UserCircle, Layers, ImageIcon
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { fazerLogout } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import ChatWidget from '@/components/ChatWidget'
+import Notificacoes from '@/components/Notificacoes'
 
 const ITENS_NAV = [
   { label: 'Dashboard',           href: '/painel',             icone: LayoutDashboard },
@@ -177,12 +178,7 @@ export default function LayoutPainel({ children, titulo }: Props) {
             {titulo && <h1 className="text-lg font-semibold" style={{ fontFamily: 'var(--fonte-display)' }}>{titulo}</h1>}
           </div>
           <div className="flex items-center gap-3">
-            <button className="relative p-2 rounded-xl transition-colors" style={{ color: 'var(--cor-texto-muted)' }}
-              onMouseOver={e => { e.currentTarget.style.background = 'var(--cor-elevado)'; e.currentTarget.style.color = 'var(--cor-texto)' }}
-              onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--cor-texto-muted)' }}>
-              <Bell size={18} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: 'var(--cor-marca)' }} />
-            </button>
+            <Notificacoes />
             <Link href="/painel/perfil"
               className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold hover:opacity-80 transition-opacity"
               style={{ background: 'rgba(124, 123, 250, 0.2)', color: 'var(--cor-marca)' }}>
