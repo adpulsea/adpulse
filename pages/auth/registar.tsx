@@ -29,6 +29,12 @@ export default function PaginaRegistar() {
     setCarregando(true)
     try {
       await criarConta(email, password, nome)
+      // Enviar email de boas-vindas
+      await fetch('/api/email-boas-vindas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, nome }),
+      })
       setSucesso(true)
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -55,8 +61,9 @@ export default function PaginaRegistar() {
             </div>
             <h1 className="text-2xl font-bold mb-3" style={{ fontFamily: 'var(--fonte-display)' }}>Conta criada!</h1>
             <p className="mb-6" style={{ color: 'var(--cor-texto-muted)' }}>
-              Enviámos um email de confirmação para <strong style={{ color: 'var(--cor-texto)' }}>{email}</strong>.
-              Clica no link para ativar a tua conta e depois configuramos o teu perfil.
+              Enviámos um email de confirmação e boas-vindas para{' '}
+              <strong style={{ color: 'var(--cor-texto)' }}>{email}</strong>.
+              Clica no link para ativar a tua conta.
             </p>
             <Link href="/onboarding" className="btn-primario justify-center">
               Configurar perfil <ArrowRight size={16} />
@@ -131,24 +138,7 @@ export default function PaginaRegistar() {
               </div>
               <p className="text-xs text-center" style={{ color: 'var(--cor-texto-fraco)' }}>
                 Ao criar uma conta, aceitas os nossos{' '}
-                <a href="#" style={{ color: 'var(--cor-marca)' }}>Termos de Serviço</a> e{' '}
-                <a href="#" style={{ color: 'var(--cor-marca)' }}>Política de Privacidade</a>.
+                <Link href="/termos" style={{ color: 'var(--cor-marca)' }}>Termos de Serviço</Link> e{' '}
+                <Link href="/privacidade" style={{ color: 'var(--cor-marca)' }}>Política de Privacidade</Link>.
               </p>
-              <button type="submit" className="btn-primario justify-center py-3" disabled={carregando} style={carregando ? { opacity: 0.7, cursor: 'not-allowed' } : {}}>
-                {carregando ? (
-                  <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> A criar conta...</>
-                ) : (
-                  <>Criar conta grátis <ArrowRight size={16} /></>
-                )}
-              </button>
-            </form>
-          </div>
-          <p className="text-center text-sm mt-6" style={{ color: 'var(--cor-texto-muted)' }}>
-            Já tens conta?{' '}
-            <Link href="/auth/login" style={{ color: 'var(--cor-marca)' }} className="font-medium hover:underline">Fazer login</Link>
-          </p>
-        </div>
-      </div>
-    </>
-  )
-}
+              <button type="submit" className="btn-primario justify-center py-3" disabled={carregando} style=
