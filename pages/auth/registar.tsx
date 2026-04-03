@@ -1,6 +1,4 @@
-Tens razão! Vamos primeiro atualizar o registar.tsx para criar o perfil manualmente após o registo. Aqui está o código completo:
-C:\adpulse\pages\auth\registar.tsx
-tsx// ============================================
+// ============================================
 // AdPulse — Página de Registo
 // ============================================
 
