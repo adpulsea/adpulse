@@ -29,12 +29,14 @@ export default function PaginaRegistar() {
     setCarregando(true)
     try {
       await criarConta(email, password, nome)
-      // Enviar email de boas-vindas
-      await fetch('/api/email-boas-vindas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, nome }),
-      })
+      // Enviar email de boas-vindas (não bloqueia o registo se falhar)
+      try {
+        await fetch('/api/email-boas-vindas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, nome }),
+        })
+      } catch { /* silencioso */ }
       setSucesso(true)
     } catch (err: unknown) {
       if (err instanceof Error) {
