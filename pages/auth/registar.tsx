@@ -141,4 +141,21 @@ export default function PaginaRegistar() {
                 <Link href="/termos" style={{ color: 'var(--cor-marca)' }}>Termos de Serviço</Link> e{' '}
                 <Link href="/privacidade" style={{ color: 'var(--cor-marca)' }}>Política de Privacidade</Link>.
               </p>
-              <button type="submit" className="btn-primario justify-center py-3" disabled={carregando} style=
+              <button type="submit" className="btn-primario justify-center py-3" disabled={carregando} style={carregando ? { opacity: 0.7, cursor: 'not-allowed' } : {}}>
+                {carregando ? (
+                  <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> A criar conta...</>
+                ) : (
+                  <>Criar conta grátis <ArrowRight size={16} /></>
+                )}
+              </button>
+            </form>
+          </div>
+          <p className="text-center text-sm mt-6" style={{ color: 'var(--cor-texto-muted)' }}>
+            Já tens conta?{' '}
+            <Link href="/auth/login" style={{ color: 'var(--cor-marca)' }} className="font-medium hover:underline">Fazer login</Link>
+          </p>
+        </div>
+      </div>
+    </>
+  )
+}
