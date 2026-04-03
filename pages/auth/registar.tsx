@@ -8,7 +8,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/router'
 import { Zap, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react'
 import { criarConta } from '@/lib/auth'
-import { supabase } from '@/lib/supabase'
 
 export default function PaginaRegistar() {
   const router = useRouter()
@@ -29,21 +28,7 @@ export default function PaginaRegistar() {
     if (password.length < 8) { setErro('A password deve ter pelo menos 8 caracteres.'); return }
     setCarregando(true)
     try {
-      const { data } = await criarConta(email, password, nome)
-
-      // Criar perfil manualmente
-      if (data?.user) {
-        await supabase.from('perfis').upsert({
-          id: data.user.id,
-          email,
-          nome: nome || email.split('@')[0],
-          plano: 'gratuito',
-          nichos: [],
-          plataformas_principais: [],
-          onboarding_completo: false,
-        })
-      }
-
+      await criarConta(email, password, nome)
       // Enviar email de boas-vindas (não bloqueia se falhar)
       try {
         await fetch('/api/email-boas-vindas', {
@@ -52,7 +37,6 @@ export default function PaginaRegistar() {
           body: JSON.stringify({ email, nome }),
         })
       } catch { /* silencioso */ }
-
       setSucesso(true)
     } catch (err: unknown) {
       if (err instanceof Error) {
