@@ -4,7 +4,7 @@
 
 import Head from 'next/head'
 import Link from 'next/link'
-import { Bot, Zap, MessageCircle, TrendingUp, Shield, Star, Instagram } from 'lucide-react'
+import { Bot, Zap, MessageCircle, TrendingUp, Shield, Star, Instagram, Search } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 
 const AGENTES = [
@@ -39,6 +39,17 @@ const AGENTES = [
     descricao: 'Cria um plano semanal completo para o Instagram da AdPulse — posts, hooks, legendas, hashtags e estratégia de crescimento com IA.',
     tags: ['Plano semanal', 'Conteúdo completo', 'Estratégia de crescimento'],
     cta: 'Criar plano semanal',
+    novo: true,
+  },
+  {
+    id: 'prospeccao',
+    href: '/painel/agentes/prospeccao',
+    icone: Search,
+    cor: '#fbbf24',
+    titulo: 'Agente de Prospeção',
+    descricao: 'Encontra potenciais clientes no Twitter/X, Reddit e LinkedIn que precisam da AdPulse e gera mensagens personalizadas.',
+    tags: ['Leads qualificados', 'Mensagens personalizadas', 'Twitter, Reddit, LinkedIn'],
+    cta: 'Procurar leads',
     novo: true,
   },
 ]
