@@ -20,7 +20,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const inicioSemana = new Date()
     inicioSemana.setDate(inicioSemana.getDate() - 7)
 
-    const { data: perfis } = await supabaseAdmin.from('perfis').select('*').order('criado_em', { ascending: false })
+    const { data: perfis } = await supabaseAdmin
+      .from('perfis')
+      .select('*')
+      .order('criado_em', { ascending: false })
+
     if (!perfis) return res.status(200).json([])
 
     const utils = await Promise.all(perfis.map(async p => {
