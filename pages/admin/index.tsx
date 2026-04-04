@@ -10,12 +10,6 @@ import {
   Crown, Clock, BarChart2, Eye,
   ChevronDown, X, Send, Loader, LogOut, RefreshCw
 } from 'lucide-react'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 type SaudeUtilizador = 'verde' | 'amarelo' | 'vermelho'
 
@@ -98,56 +92,28 @@ function ModalContacto({ utilizador, onFechar }: { utilizador: Utilizador, onFec
 }
 
 export default function AdminDashboard() {
-  const [senha, setSenha]         = useState('')
-  const [autenticado, setAuth]    = useState(false)
-  const [utilizadores, setUtils]  = useState<Utilizador[]>([])
-  const [carregando, setCarr]     = useState(false)
-  const [filtro, setFiltro]       = useState<'todos' | SaudeUtilizador>('todos')
-  const [pesquisa, setPesquisa]   = useState('')
-  const [modal, setModal]         = useState<Utilizador | null>(null)
-  const [expandido, setExpand]    = useState<string | null>(null)
+  const [senha, setSenha]       = useState('')
+  const [autenticado, setAuth]  = useState(false)
+  const [utilizadores, setUtils] = useState<Utilizador[]>([])
+  const [carregando, setCarr]   = useState(false)
+  const [filtro, setFiltro]     = useState<'todos' | SaudeUtilizador>('todos')
+  const [pesquisa, setPesquisa] = useState('')
+  const [modal, setModal]       = useState<Utilizador | null>(null)
+  const [expandido, setExpand]  = useState<string | null>(null)
 
   const SENHA_ADMIN = 'adpulse2026'
 
   const carregar = async () => {
     setCarr(true)
     try {
-      const inicioSemana = new Date()
-      inicioSemana.setDate(inicioSemana.getDate() - 7)
-
-      const { data: perfis } = await supabase.from('perfis').select('*').order('criado_em', { ascending: false })
-      if (!perfis) { setCarr(false); return }
-
-      const utils: Utilizador[] = await Promise.all(perfis.map(async p => {
-        const [
-          { count: totalGeracoes },
-          { count: geracoesSemana },
-          { count: postsAgendados },
-          { count: postsPublicados },
-        ] = await Promise.all([
-          supabase.from('geracoes_ai').select('*', { count: 'exact', head: true }).eq('utilizador_id', p.id),
-          supabase.from('geracoes_ai').select('*', { count: 'exact', head: true }).eq('utilizador_id', p.id).gte('criado_em', inicioSemana.toISOString()),
-          supabase.from('posts').select('*', { count: 'exact', head: true }).eq('utilizador_id', p.id).eq('estado', 'agendado'),
-          supabase.from('posts').select('*', { count: 'exact', head: true }).eq('utilizador_id', p.id).eq('estado', 'publicado'),
-        ])
-
-        const u = {
-          id: p.id,
-          email: p.email,
-          nome: p.nome || p.email?.split('@')[0] || 'Utilizador',
-          plano: p.plano || 'gratuito',
-          criado_em: p.criado_em,
-          total_geracoes: totalGeracoes || 0,
-          geracoes_ultima_semana: geracoesSemana || 0,
-          posts_agendados: postsAgendados || 0,
-          posts_publicados: postsPublicados || 0,
-          saude: 'verde' as SaudeUtilizador,
-          motivo_saude: '',
-        }
+      const r = await fetch('/api/admin/utilizadores', {
+        headers: { 'x-admin-senha': 'adpulse2026' }
+      })
+      const dados = await r.json()
+      const utils = dados.map((u: any) => {
         const { saude, motivo } = calcularSaude(u)
         return { ...u, saude, motivo_saude: motivo }
-      }))
-
+      })
       setUtils(utils)
     } catch (err) { console.error(err) }
     setCarr(false)
@@ -221,7 +187,6 @@ export default function AdminDashboard() {
 
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px' }}>
 
-          {/* Métricas */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 32 }}>
             {[
               { label: 'Total utilizadores', valor: cont.total,    cor: '#7c7bfa', icone: Users         },
@@ -243,7 +208,6 @@ export default function AdminDashboard() {
             })}
           </div>
 
-          {/* Filtros */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: 8 }}>
               {([
@@ -268,7 +232,7 @@ export default function AdminDashboard() {
           {carregando && (
             <div style={{ textAlign: 'center', padding: 60 }}>
               <Loader size={28} style={{ color: '#7c7bfa', margin: '0 auto 12px', display: 'block' }} />
-              <p style={{ color: '#8888aa', fontSize: 13 }}>A carregar utilizadores reais...</p>
+              <p style={{ color: '#8888aa', fontSize: 13 }}>A carregar utilizadores...</p>
             </div>
           )}
 
@@ -297,9 +261,9 @@ export default function AdminDashboard() {
                     </div>
                     <div style={{ display: 'flex', gap: 24, flexShrink: 0 }}>
                       {[
-                        { valor: u.total_geracoes, label: 'gerações', cor: '#7c7bfa' },
-                        { valor: u.posts_publicados, label: 'publicados', cor: '#34d399' },
-                        { valor: u.geracoes_ultima_semana, label: 'esta semana', cor: '#fbbf24' },
+                        { valor: u.total_geracoes,          label: 'gerações',    cor: '#7c7bfa' },
+                        { valor: u.posts_publicados,         label: 'publicados',  cor: '#34d399' },
+                        { valor: u.geracoes_ultima_semana,   label: 'esta semana', cor: '#fbbf24' },
                       ].map(s => (
                         <div key={s.label} style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: 18, fontWeight: 700, color: s.cor }}>{s.valor}</div>
