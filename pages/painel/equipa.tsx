@@ -88,6 +88,16 @@ const EQUIPA: Membro[] = [
     tarefas_concluidas: 4,
     estado: 'disponivel',
   },
+  {
+    id: 'research',
+    nome: 'Rui Ferreira',
+    funcao: 'Research & Intelligence',
+    emoji: '🔬',
+    cor: '#60a5fa',
+    tarefas_semana: 5,
+    tarefas_concluidas: 2,
+    estado: 'ocupado',
+  },
 ]
 
 const TAREFAS_INICIAIS: Tarefa[] = [
@@ -99,6 +109,10 @@ const TAREFAS_INICIAIS: Tarefa[] = [
   { id: '6', titulo: 'Carrossel "5 funcionalidades"', descricao: 'Criar os 5 slides do carrossel', membro_id: 'designer', estado: 'pendente', prioridade: 'media', plataforma: 'instagram', data: 'Qua' },
   { id: '7', titulo: 'Legendas carrossel + hashtags', descricao: 'Escrever legenda e 15 hashtags', membro_id: 'copywriter', estado: 'em_progresso', prioridade: 'media', plataforma: 'instagram', data: 'Qua' },
   { id: '8', titulo: 'Estratégia mês de maio', descricao: 'Definir pilares e objetivos de maio', membro_id: 'estrategista', estado: 'pendente', prioridade: 'baixa', plataforma: 'geral', data: 'Sex' },
+  { id: '9', titulo: 'Relatório novidades IA semana 16', descricao: 'GPT-4o, Claude 3.5, Gemini Flash — o que mudou', membro_id: 'research', estado: 'concluido', prioridade: 'alta', plataforma: 'geral', data: 'Seg' },
+  { id: '10', titulo: 'Análise concorrentes Buffer e Later', descricao: 'Novas funcionalidades lançadas este mês', membro_id: 'research', estado: 'em_progresso', prioridade: 'alta', plataforma: 'geral', data: 'Ter' },
+  { id: '11', titulo: 'Tendências virais Instagram abril', descricao: 'Formatos e temas em alta esta semana', membro_id: 'research', estado: 'em_progresso', prioridade: 'media', plataforma: 'instagram', data: 'Qua' },
+  { id: '12', titulo: 'Sugestões de novas funcionalidades', descricao: 'Lista de melhorias para a AdPulse baseada na pesquisa', membro_id: 'research', estado: 'pendente', prioridade: 'media', plataforma: 'geral', data: 'Sex' },
 ]
 
 const COR_ESTADO: Record<EstadoTarefa, string> = {
