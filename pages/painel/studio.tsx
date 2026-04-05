@@ -3,7 +3,7 @@
 // ============================================
 
 import Head from 'next/head'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Sparkles, Copy, RefreshCw, Hash, Zap,
   TrendingUp, CheckCircle, ChevronRight, ChevronLeft,
@@ -11,6 +11,8 @@ import {
 } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/lib/supabase'
+import { usePlano } from '@/hooks/usePlano'
 
 // Tipos de formato disponíveis
 const FORMATOS = [
@@ -38,7 +40,7 @@ const EXEMPLOS = [
 ]
 
 // Calcular score do conteúdo
-function calcularScore(hook: string = '', legenda: string = '', hashtags: string[] = []): {
+function calcularScore(hook: string, legenda: string, hashtags: string[]): {
   total: number, hook: number, legenda: number, hashtags: number, cta: number
 } {
   const scoreHook     = Math.min(hook.length > 20 ? 85 + Math.random() * 15 : 40, 100)
@@ -76,6 +78,28 @@ function BarraScore({ label, valor }: { label: string, valor: number }) {
 
 export default function StudioConteudo() {
   const { utilizador } = useAuth()
+  const { isPro } = usePlano()
+
+  // Contador de gerações
+  const [geracoesHoje, setGeracoesHoje] = useState(0)
+  const limiteGeracoes = isPro ? 999 : 3
+  const geracoesRestantes = Math.max(0, limiteGeracoes - geracoesHoje)
+
+  // Carregar gerações de hoje
+  useEffect(() => {
+    if (!utilizador) return
+    const carregar = async () => {
+      const inicioHoje = new Date()
+      inicioHoje.setHours(0, 0, 0, 0)
+      const { count } = await supabase
+        .from('geracoes_ai')
+        .select('*', { count: 'exact', head: true })
+        .eq('utilizador_id', utilizador.id)
+        .gte('criado_em', inicioHoje.toISOString())
+      setGeracoesHoje(count || 0)
+    }
+    carregar()
+  }, [utilizador])
 
   // Estado do formulário
   const [topico, setTopico] = useState('')
@@ -98,7 +122,7 @@ export default function StudioConteudo() {
   const [erroLimite, setErroLimite] = useState(false)
 
   // Score calculado
-  const score = resultado ? calcularScore(resultado.hook ?? '', resultado.legenda ?? '', resultado.hashtags ?? []) : null
+  const score = resultado ? calcularScore(resultado.hook, resultado.legenda, resultado.hashtags) : null
 
   // Gerar conteúdo via API
   const gerarConteudo = async () => {
@@ -121,6 +145,7 @@ export default function StudioConteudo() {
       const dados = await resposta.json()
       setResultado(dados)
       setSlideAtual(0)
+      setGeracoesHoje(prev => prev + 1)
     } catch {
       console.error('Erro ao gerar conteúdo')
     } finally {
@@ -259,6 +284,39 @@ export default function StudioConteudo() {
                   </div>
                 </div>
               </div>
+
+              {/* Contador de gerações */}
+              {!isPro && (
+                <div className="flex items-center justify-between px-4 py-3 rounded-xl"
+                  style={{
+                    background: geracoesRestantes === 0 ? 'rgba(248,113,113,0.08)' : geracoesRestantes === 1 ? 'rgba(251,191,36,0.08)' : 'rgba(124,123,250,0.06)',
+                    border: `1px solid ${geracoesRestantes === 0 ? 'rgba(248,113,113,0.3)' : geracoesRestantes === 1 ? 'rgba(251,191,36,0.3)' : 'rgba(124,123,250,0.15)'}`,
+                  }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{geracoesRestantes === 0 ? '🚫' : geracoesRestantes === 1 ? '⚠️' : '✨'}</span>
+                    <div>
+                      <p className="text-xs font-semibold" style={{ color: geracoesRestantes === 0 ? 'var(--cor-erro)' : geracoesRestantes === 1 ? 'var(--cor-aviso)' : 'var(--cor-marca)' }}>
+                        {geracoesRestantes === 0 ? 'Limite atingido' : `${geracoesRestantes} geraç${geracoesRestantes === 1 ? 'ão' : 'ões'} restante${geracoesRestantes === 1 ? '' : 's'} hoje`}
+                      </p>
+                      <p className="text-xs" style={{ color: 'var(--cor-texto-muted)' }}>
+                        {geracoesHoje}/{limiteGeracoes} gerações usadas
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-1">
+                      {Array.from({ length: limiteGeracoes }).map((_, i) => (
+                        <div key={i} className="w-2 h-5 rounded-sm"
+                          style={{ background: i < geracoesHoje ? (geracoesRestantes === 0 ? 'var(--cor-erro)' : 'var(--cor-aviso)') : 'var(--cor-borda)' }} />
+                      ))}
+                    </div>
+                    <a href="/precos" className="text-xs font-medium px-2.5 py-1 rounded-lg"
+                      style={{ background: 'var(--cor-marca)', color: '#fff', textDecoration: 'none' }}>
+                      Pro
+                    </a>
+                  </div>
+                </div>
+              )}
 
               {/* Aviso de limite */}
               {erroLimite && (
