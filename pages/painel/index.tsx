@@ -13,6 +13,7 @@ import {
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
+import TourBoasVindas from '@/components/TourBoasVindas'
 
 // ---- Tipos ----
 type Metricas = {
@@ -95,6 +96,7 @@ export default function Dashboard() {
   const [postsSemana, setPostsSem]  = useState<PostSemana[]>([])
   const [geracoesDias, setGerDias]  = useState<number[]>([])
   const [carregando, setCarr]       = useState(true)
+  const [mostrarTour, setTour]      = useState(false)
 
   const nomeUtilizador = utilizador?.user_metadata?.nome
     || utilizador?.email?.split('@')[0] || 'criador'
@@ -172,6 +174,10 @@ export default function Dashboard() {
     }
 
     carregar()
+
+    // Mostrar tour na primeira visita
+    const tourVisto = localStorage.getItem('adpulse_tour_visto')
+    if (!tourVisto) setTour(true)
   }, [utilizador])
 
   const limiteGeracoes = metricas?.plano === 'gratuito' ? 3 : 999
@@ -431,6 +437,16 @@ export default function Dashboard() {
 
         </div>
       </LayoutPainel>
+
+      {mostrarTour && (
+        <TourBoasVindas
+          nome={nomeUtilizador.split(' ')[0]}
+          onFechar={() => {
+            setTour(false)
+            localStorage.setItem('adpulse_tour_visto', 'true')
+          }}
+        />
+      )}
     </>
   )
 }
