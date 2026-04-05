@@ -18,6 +18,7 @@ const PAGINAS_PUBLICAS = [
   '/privacidade',
   '/onboarding',
   '/admin',
+  '/r',
 ]
 
 export default function App({ Component, pageProps }: AppProps) {
