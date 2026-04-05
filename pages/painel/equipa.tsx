@@ -163,6 +163,27 @@ const FLUXO = [
 export default function GestaoEquipa() {
   const { isPro, carregando: carregandoPlano } = usePlano()
 
+  // Todos os hooks ANTES de qualquer return
+  const [tarefas, setTarefas]         = useState<Tarefa[]>([])
+  const [vista, setVista]             = useState<'kanban' | 'equipa' | 'fluxo'>('kanban')
+  const [membroFiltro, setFiltro]     = useState<string>('todos')
+  const [modalNova, setModalNova]     = useState(false)
+  const [carregandoTarefas, setCarrT] = useState(true)
+  const [novaTarefa, setNovaTarefa]   = useState({ titulo: '', descricao: '', membro_id: 'estrategista', prioridade: 'media' as const, plataforma: 'instagram', data: 'Seg' })
+
+  useEffect(() => {
+    const carregar = async () => {
+      setCarrT(true)
+      const { data } = await supabase
+        .from('tarefas_equipa')
+        .select('*')
+        .order('criado_em', { ascending: true })
+      if (data) setTarefas(data)
+      setCarrT(false)
+    }
+    carregar()
+  }, [])
+
   if (carregandoPlano) return (
     <LayoutPainel titulo="Equipa">
       <div className="flex items-center justify-center h-64">
@@ -176,27 +197,6 @@ export default function GestaoEquipa() {
       <BloqueadoPro funcionalidade="Equipa" descricao="Gere a tua equipa de conteúdo com tarefas, fluxos e produtividade em tempo real." emoji="👥" />
     </LayoutPainel>
   )
-
-  const [tarefas, setTarefas]       = useState<Tarefa[]>([])
-  const [vista, setVista]           = useState<'kanban' | 'equipa' | 'fluxo'>('kanban')
-  const [membroFiltro, setFiltro]   = useState<string>('todos')
-  const [modalNova, setModalNova]   = useState(false)
-  const [carregandoTarefas, setCarrT] = useState(true)
-  const [novaTarefa, setNovaTarefa] = useState({ titulo: '', descricao: '', membro_id: 'estrategista', prioridade: 'media' as const, plataforma: 'instagram', data: 'Seg' })
-
-  // Carregar tarefas do Supabase
-  useEffect(() => {
-    const carregar = async () => {
-      setCarrT(true)
-      const { data } = await supabase
-        .from('tarefas_equipa')
-        .select('*')
-        .order('criado_em', { ascending: true })
-      if (data) setTarefas(data)
-      setCarrT(false)
-    }
-    carregar()
-  }, [])
 
   const criarTarefa = async () => {
     if (!novaTarefa.titulo.trim()) return
