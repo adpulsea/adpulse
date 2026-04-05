@@ -3,7 +3,7 @@
 // ============================================
 
 import Head from 'next/head'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Users, CheckCircle, Clock, AlertCircle,
   Plus, Trash2, Edit3, ChevronRight,
@@ -13,6 +13,7 @@ import {
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import BloqueadoPro from '@/components/BloqueadoPro'
 import { usePlano } from '@/hooks/usePlano'
+import { supabase } from '@/lib/supabase'
 
 // ---- Tipos ----
 type EstadoTarefa = 'pendente' | 'em_progresso' | 'revisao' | 'concluido'
@@ -176,29 +177,46 @@ export default function GestaoEquipa() {
     </LayoutPainel>
   )
 
-  const [tarefas, setTarefas]       = useState<Tarefa[]>(TAREFAS_INICIAIS)
+  const [tarefas, setTarefas]       = useState<Tarefa[]>([])
   const [vista, setVista]           = useState<'kanban' | 'equipa' | 'fluxo'>('kanban')
   const [membroFiltro, setFiltro]   = useState<string>('todos')
   const [modalNova, setModalNova]   = useState(false)
+  const [carregandoTarefas, setCarrT] = useState(true)
   const [novaTarefa, setNovaTarefa] = useState({ titulo: '', descricao: '', membro_id: 'estrategista', prioridade: 'media' as const, plataforma: 'instagram', data: 'Seg' })
 
-  const criarTarefa = () => {
-    if (!novaTarefa.titulo.trim()) return
-    const t: Tarefa = {
-      id: Date.now().toString(),
-      ...novaTarefa,
-      estado: 'pendente',
+  // Carregar tarefas do Supabase
+  useEffect(() => {
+    const carregar = async () => {
+      setCarrT(true)
+      const { data } = await supabase
+        .from('tarefas_equipa')
+        .select('*')
+        .order('criado_em', { ascending: true })
+      if (data) setTarefas(data)
+      setCarrT(false)
     }
-    setTarefas(prev => [...prev, t])
+    carregar()
+  }, [])
+
+  const criarTarefa = async () => {
+    if (!novaTarefa.titulo.trim()) return
+    const { data } = await supabase
+      .from('tarefas_equipa')
+      .insert({ ...novaTarefa, estado: 'pendente' })
+      .select()
+      .single()
+    if (data) setTarefas(prev => [...prev, data])
     setNovaTarefa({ titulo: '', descricao: '', membro_id: 'estrategista', prioridade: 'media', plataforma: 'instagram', data: 'Seg' })
     setModalNova(false)
   }
 
-  const moverTarefa = (id: string, novoEstado: EstadoTarefa) => {
+  const moverTarefa = async (id: string, novoEstado: EstadoTarefa) => {
+    await supabase.from('tarefas_equipa').update({ estado: novoEstado }).eq('id', id)
     setTarefas(prev => prev.map(t => t.id === id ? { ...t, estado: novoEstado } : t))
   }
 
-  const apagarTarefa = (id: string) => {
+  const apagarTarefa = async (id: string) => {
+    await supabase.from('tarefas_equipa').delete().eq('id', id)
     setTarefas(prev => prev.filter(t => t.id !== id))
   }
 
