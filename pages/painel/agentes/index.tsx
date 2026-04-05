@@ -4,7 +4,7 @@
 
 import Head from 'next/head'
 import Link from 'next/link'
-import { Bot, Zap, MessageCircle, TrendingUp, Shield, Star, Instagram, Search } from 'lucide-react'
+import { Bot, Zap, MessageCircle, TrendingUp, Shield, Star, Instagram, Search, FlaskConical } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 
 const AGENTES = [
@@ -50,6 +50,17 @@ const AGENTES = [
     descricao: 'Encontra potenciais clientes no Twitter/X, Reddit e LinkedIn que precisam da AdPulse e gera mensagens personalizadas.',
     tags: ['Leads qualificados', 'Mensagens personalizadas', 'Twitter, Reddit, LinkedIn'],
     cta: 'Procurar leads',
+    novo: true,
+  },
+  {
+    id: 'research',
+    href: '/painel/agentes/research',
+    icone: FlaskConical,
+    cor: '#60a5fa',
+    titulo: 'Agente Research & Intelligence',
+    descricao: 'Monitoriza novidades de IA, tendências virais, concorrentes e oportunidades para a AdPulse estar sempre à frente do mercado.',
+    tags: ['Novidades de IA', 'Análise concorrentes', 'Tendências virais'],
+    cta: 'Gerar relatório',
     novo: true,
   },
 ]
