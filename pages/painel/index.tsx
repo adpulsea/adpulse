@@ -171,6 +171,35 @@ export default function Dashboard() {
       }
 
       setCarr(false)
+
+      // ---- Notificações automáticas de posts agendados ----
+      const fimHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59).toISOString()
+      const { data: postsHoje } = await supabase
+        .from('posts')
+        .select('id, titulo, hora_publicacao, plataforma')
+        .eq('utilizador_id', utilizador.id)
+        .eq('estado', 'agendado')
+        .gte('criado_em', inicioHoje)
+        .lte('criado_em', fimHoje)
+
+      if (postsHoje && postsHoje.length > 0) {
+        for (const post of postsHoje) {
+          // Verificar se já existe notificação para este post hoje
+          const chaveNotif = `notif_post_${post.id}_${hoje.toLocaleDateString('pt-PT')}`
+          const jaNotificado = localStorage.getItem(chaveNotif)
+          if (!jaNotificado) {
+            await supabase.from('notificacoes').insert({
+              utilizador_id: utilizador.id,
+              titulo: `📅 Post agendado para hoje`,
+              mensagem: `"${post.titulo}" está agendado para as ${post.hora_publicacao || '??:??'} no ${post.plataforma}. Está na hora de publicar!`,
+              tipo: 'aviso',
+              lida: false,
+              link: `/painel/publicar?id=${post.id}`,
+            })
+            localStorage.setItem(chaveNotif, 'true')
+          }
+        }
+      }
     }
 
     carregar()
