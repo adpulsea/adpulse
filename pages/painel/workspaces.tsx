@@ -9,6 +9,8 @@ import {
   Sparkles, ChevronDown
 } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
+import BloqueadoPro from '@/components/BloqueadoPro'
+import { usePlano } from '@/hooks/usePlano'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 
@@ -337,6 +339,22 @@ function ModalWorkspace({
 
 // ---- Componente principal ----
 export default function Workspaces() {
+  const { isPro, carregando: carregandoPlano } = usePlano()
+
+  if (carregandoPlano) return (
+    <LayoutPainel titulo="Workspaces">
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin w-6 h-6 border-2 border-t-transparent rounded-full" style={{ borderColor: 'var(--cor-marca)' }} />
+      </div>
+    </LayoutPainel>
+  )
+
+  if (!isPro) return (
+    <LayoutPainel titulo="Workspaces">
+      <BloqueadoPro funcionalidade="Workspaces" descricao="Gere múltiplas marcas e clientes num só lugar com workspaces dedicados." emoji="🏢" />
+    </LayoutPainel>
+  )
+
   const { utilizador }              = useAuth()
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [carregando, setCarregando] = useState(true)

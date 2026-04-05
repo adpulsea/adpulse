@@ -12,6 +12,8 @@ import {
   TrendingUp, Bot
 } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
+import BloqueadoPro from '@/components/BloqueadoPro'
+import { usePlano } from '@/hooks/usePlano'
 
 // ---- Tipos ----
 type Plataforma = 'instagram' | 'tiktok'
@@ -394,6 +396,22 @@ function ModalPost({
 
 // ---- Componente principal ----
 export default function Automacao() {
+  const { isPro, carregando: carregandoPlano } = usePlano()
+
+  if (carregandoPlano) return (
+    <LayoutPainel titulo="Automação">
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin w-6 h-6 border-2 border-t-transparent rounded-full" style={{ borderColor: 'var(--cor-marca)' }} />
+      </div>
+    </LayoutPainel>
+  )
+
+  if (!isPro) return (
+    <LayoutPainel titulo="Automação">
+      <BloqueadoPro funcionalidade="Automação" descricao="Cria gatilhos automáticos e agenda respostas para crescer no piloto automático." emoji="⚙️" />
+    </LayoutPainel>
+  )
+
   const [abaAtiva, setAba]             = useState<'posts' | 'gatilhos'>('posts')
   const [posts, setPosts]              = useState<PostAgendado[]>(POSTS_INICIAIS)
   const [gatilhos, setGatilhos]        = useState<Gatilho[]>(GATILHOS_INICIAIS)

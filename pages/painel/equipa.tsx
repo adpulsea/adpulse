@@ -11,6 +11,8 @@ import {
   BarChart2, Zap, Star
 } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
+import BloqueadoPro from '@/components/BloqueadoPro'
+import { usePlano } from '@/hooks/usePlano'
 
 // ---- Tipos ----
 type EstadoTarefa = 'pendente' | 'em_progresso' | 'revisao' | 'concluido'
@@ -158,6 +160,22 @@ const FLUXO = [
 ]
 
 export default function GestaoEquipa() {
+  const { isPro, carregando: carregandoPlano } = usePlano()
+
+  if (carregandoPlano) return (
+    <LayoutPainel titulo="Equipa">
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin w-6 h-6 border-2 border-t-transparent rounded-full" style={{ borderColor: 'var(--cor-marca)' }} />
+      </div>
+    </LayoutPainel>
+  )
+
+  if (!isPro) return (
+    <LayoutPainel titulo="Equipa">
+      <BloqueadoPro funcionalidade="Equipa" descricao="Gere a tua equipa de conteúdo com tarefas, fluxos e produtividade em tempo real." emoji="👥" />
+    </LayoutPainel>
+  )
+
   const [tarefas, setTarefas]       = useState<Tarefa[]>(TAREFAS_INICIAIS)
   const [vista, setVista]           = useState<'kanban' | 'equipa' | 'fluxo'>('kanban')
   const [membroFiltro, setFiltro]   = useState<string>('todos')

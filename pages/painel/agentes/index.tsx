@@ -6,6 +6,8 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { Bot, Zap, MessageCircle, TrendingUp, Shield, Star, Instagram, Search, FlaskConical } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
+import BloqueadoPro from '@/components/BloqueadoPro'
+import { usePlano } from '@/hooks/usePlano'
 
 const AGENTES = [
   {
@@ -66,6 +68,22 @@ const AGENTES = [
 ]
 
 export default function PaginaAgentes() {
+  const { isPro, carregando: carregandoPlano } = usePlano()
+
+  if (carregandoPlano) return (
+    <LayoutPainel titulo="Agentes IA">
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin w-6 h-6 border-2 border-t-transparent rounded-full" style={{ borderColor: 'var(--cor-marca)' }} />
+      </div>
+    </LayoutPainel>
+  )
+
+  if (!isPro) return (
+    <LayoutPainel titulo="Agentes IA">
+      <BloqueadoPro funcionalidade="Agentes IA" descricao="Acede a agentes especializados de suporte, crescimento, prospeção e research para levar a tua marca ao próximo nível." emoji="🤖" />
+    </LayoutPainel>
+  )
+
   return (
     <>
       <Head><title>Agentes IA — AdPulse</title></Head>
