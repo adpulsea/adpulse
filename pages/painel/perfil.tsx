@@ -1,10 +1,10 @@
 // ============================================
-// AdPulse — Página de Perfil
+// AdPulse — Página de Perfil + Sistema de Referidos
 // ============================================
 
 import Head from 'next/head'
 import { useState, useEffect } from 'react'
-import { Check, Plus, X, Save, User, Loader } from 'lucide-react'
+import { Check, Plus, X, Save, Loader, Copy, Gift, Users, Star } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
@@ -40,6 +40,13 @@ const TONS = [
   { id: 'provocador',   label: 'Provocador',   desc: 'Direto e desafiante' },
 ]
 
+type DadosReferidos = {
+  codigo: string
+  total_referidos: number
+  total_pagos: number
+  meses_ganhos: number
+}
+
 export default function Perfil() {
   const { utilizador } = useAuth()
   const [carregando, setCarregando] = useState(true)
@@ -56,10 +63,18 @@ export default function Perfil() {
   const [plataformas, setPlats]     = useState<string[]>([])
   const [tom, setTom]               = useState('')
 
-  // Carregar perfil existente
+  // Referidos
+  const [referidos, setReferidos]   = useState<DadosReferidos | null>(null)
+  const [copiado, setCopiado]       = useState(false)
+
+  const linkReferido = referidos
+    ? `${typeof window !== 'undefined' ? window.location.origin : 'https://adpulse-pf3b.vercel.app'}/r/${referidos.codigo}`
+    : ''
+
   useEffect(() => {
     if (!utilizador) return
     const carregar = async () => {
+      // Carregar perfil
       const { data } = await supabase.from('perfis').select('*').eq('id', utilizador.id).single()
       if (data) {
         setNome(data.nome || '')
@@ -70,10 +85,42 @@ export default function Perfil() {
         setPlats(data.plataformas_principais || [])
         setTom(data.tom_preferido || '')
       }
+
+      // Carregar ou criar referidos
+      const { data: ref } = await supabase
+        .from('referidos')
+        .select('*')
+        .eq('utilizador_id', utilizador.id)
+        .single()
+
+      if (ref) {
+        setReferidos(ref)
+      } else {
+        // Criar código único baseado no nome/email
+        const base = (data?.nome || utilizador.email?.split('@')[0] || 'user')
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '')
+          .slice(0, 12)
+        const codigo = `${base}${Math.random().toString(36).slice(2, 6)}`
+
+        const { data: novoRef } = await supabase
+          .from('referidos')
+          .insert({ utilizador_id: utilizador.id, codigo })
+          .select()
+          .single()
+        if (novoRef) setReferidos(novoRef)
+      }
+
       setCarregando(false)
     }
     carregar()
   }, [utilizador])
+
+  const copiarLink = () => {
+    navigator.clipboard.writeText(linkReferido)
+    setCopiado(true)
+    setTimeout(() => setCopiado(false), 2000)
+  }
 
   const toggleNicho = (n: string) => {
     setNichos(prev => prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n])
@@ -156,6 +203,90 @@ export default function Perfil() {
             </div>
           </div>
 
+          {/* ---- SISTEMA DE REFERIDOS ---- */}
+          <div className="card flex flex-col gap-5"
+            style={{ background: 'linear-gradient(135deg, rgba(124,123,250,0.06), rgba(192,132,252,0.06))', border: '1px solid rgba(124,123,250,0.2)' }}>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(124,123,250,0.15)', border: '1px solid rgba(124,123,250,0.3)' }}>
+                <Gift size={20} style={{ color: 'var(--cor-marca)' }} />
+              </div>
+              <div>
+                <h3 className="font-semibold" style={{ fontFamily: 'var(--fonte-display)' }}>
+                  Programa de Referidos
+                </h3>
+                <p className="text-xs" style={{ color: 'var(--cor-texto-muted)' }}>
+                  Ganha 1 mês grátis por cada amigo que pagar
+                </p>
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Referidos',    valor: referidos?.total_referidos || 0, cor: '#7c7bfa', icone: Users },
+                { label: 'Pagaram',      valor: referidos?.total_pagos || 0,     cor: '#34d399', icone: Star  },
+                { label: 'Meses ganhos', valor: referidos?.meses_ganhos || 0,    cor: '#fbbf24', icone: Gift  },
+              ].map(s => {
+                const Icone = s.icone
+                return (
+                  <div key={s.label} className="text-center p-3 rounded-xl"
+                    style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)' }}>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2"
+                      style={{ background: `${s.cor}15`, border: `1px solid ${s.cor}25` }}>
+                      <Icone size={14} style={{ color: s.cor }} />
+                    </div>
+                    <div className="text-xl font-bold" style={{ color: s.cor, fontFamily: 'var(--fonte-display)' }}>
+                      {s.valor}
+                    </div>
+                    <div className="text-xs" style={{ color: 'var(--cor-texto-muted)' }}>{s.label}</div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Link de referido */}
+            <div>
+              <label className="label-campo">O teu link de referido</label>
+              <div className="flex gap-2">
+                <div className="flex-1 flex items-center px-3 py-2.5 rounded-xl text-sm truncate"
+                  style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)', color: 'var(--cor-texto-muted)' }}>
+                  {linkReferido}
+                </div>
+                <button onClick={copiarLink}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium flex-shrink-0"
+                  style={{
+                    background: copiado ? 'rgba(52,211,153,0.15)' : 'rgba(124,123,250,0.15)',
+                    border: `1px solid ${copiado ? 'rgba(52,211,153,0.3)' : 'rgba(124,123,250,0.3)'}`,
+                    color: copiado ? 'var(--cor-sucesso)' : 'var(--cor-marca)',
+                  }}>
+                  {copiado ? <><Check size={14} /> Copiado!</> : <><Copy size={14} /> Copiar</>}
+                </button>
+              </div>
+            </div>
+
+            {/* Como funciona */}
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--cor-texto-muted)' }}>
+                Como funciona
+              </p>
+              {[
+                { num: '1', texto: 'Partilha o teu link com amigos e seguidores' },
+                { num: '2', texto: 'Quando se registam pelo teu link, ficamos a saber' },
+                { num: '3', texto: 'Quando pagarem o Pro, ganhas 1 mês grátis automaticamente' },
+              ].map(p => (
+                <div key={p.num} className="flex items-center gap-3 text-xs" style={{ color: 'var(--cor-texto-muted)' }}>
+                  <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                    style={{ background: 'rgba(124,123,250,0.15)', color: 'var(--cor-marca)' }}>
+                    {p.num}
+                  </span>
+                  {p.texto}
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Info básica */}
           <div className="card flex flex-col gap-4">
             <h3 className="font-semibold" style={{ fontFamily: 'var(--fonte-display)' }}>Informação básica</h3>
@@ -193,7 +324,6 @@ export default function Perfil() {
                 ({nichos.length} selecionados)
               </span>
             </h3>
-
             <div className="flex flex-wrap gap-2">
               {NICHOS_SUGERIDOS.map(n => (
                 <button key={n} onClick={() => toggleNicho(n)}
@@ -208,8 +338,6 @@ export default function Perfil() {
                 </button>
               ))}
             </div>
-
-            {/* Nicho personalizado */}
             <div className="flex gap-2">
               <input value={nichoCustom} onChange={e => setNichoC(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && adicionarNichoCustom()}
@@ -221,8 +349,6 @@ export default function Perfil() {
                 <Plus size={16} />
               </button>
             </div>
-
-            {/* Nichos ativos */}
             {nichos.filter(n => !NICHOS_SUGERIDOS.includes(n)).length > 0 && (
               <div>
                 <p className="text-xs mb-2" style={{ color: 'var(--cor-texto-muted)' }}>Nichos personalizados:</p>
