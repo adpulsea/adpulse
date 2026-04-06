@@ -64,7 +64,7 @@ export default function Perfil() {
   const [tom, setTom]               = useState('')
 
   // Handles das plataformas
-  const [handles, setHandles] = useState<Record<string, string>>({})
+  const [handles, setHandles] = useState<Record<string, string | string[]>>({})
 
   // Referidos
   const [referidos, setReferidos]   = useState<DadosReferidos | null>(null)
@@ -429,7 +429,7 @@ export default function Perfil() {
                 { id: 'twitter',   label: 'Twitter/X',  emoji: '🐦', placeholder: 'username',  baseUrl: 'https://x.com/' },
                 { id: 'facebook',  label: 'Facebook',   emoji: '👥', placeholder: 'pagina',    baseUrl: 'https://facebook.com/' },
               ].map(p => {
-                const lista: string[] = Array.isArray(handles[p.id]) ? handles[p.id] : handles[p.id] ? [handles[p.id]] : ['']
+                const lista: string[] = Array.isArray(handles[p.id]) ? (handles[p.id] as string[]) : handles[p.id] ? [handles[p.id] as string] : ['']
                 return (
                   <div key={p.id} className="p-3 rounded-xl flex flex-col gap-2"
                     style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)' }}>
