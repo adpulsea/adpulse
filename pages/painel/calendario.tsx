@@ -10,6 +10,7 @@ import {
   Loader, X, Check, Trash2, Edit3, Send
 } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
+import ExportarPDF from '@/components/ExportarPDF'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 
@@ -361,6 +362,7 @@ export default function Calendario() {
             <button onClick={() => setModal({ dia: hoje.getDate() })} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium" style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)', color: 'var(--cor-texto)' }}>
               <Plus size={16} /> Novo post
             </button>
+            <ExportarPDF mesAtual={mesAtual} anoAtual={anoAtual} />
           </div>
         </div>
 
