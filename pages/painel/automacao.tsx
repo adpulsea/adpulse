@@ -398,6 +398,13 @@ function ModalPost({
 export default function Automacao() {
   const { isPro, carregando: carregandoPlano } = usePlano()
 
+  const [abaAtiva, setAba]             = useState<'posts' | 'gatilhos'>('posts')
+  const [posts, setPosts]              = useState<PostAgendado[]>(POSTS_INICIAIS)
+  const [gatilhos, setGatilhos]        = useState<Gatilho[]>(GATILHOS_INICIAIS)
+  const [modalPost, setModalPost]      = useState<{ post?: PostAgendado } | null>(null)
+  const [modalGatilho, setModalGat]    = useState<{ gatilho?: Gatilho } | null>(null)
+  const [expandido, setExpandido]      = useState<string | null>(null)
+
   if (carregandoPlano) return (
     <LayoutPainel titulo="Automação">
       <div className="flex items-center justify-center h-64">
@@ -411,13 +418,6 @@ export default function Automacao() {
       <BloqueadoPro funcionalidade="Automação" descricao="Cria gatilhos automáticos e agenda respostas para crescer no piloto automático." emoji="⚙️" />
     </LayoutPainel>
   )
-
-  const [abaAtiva, setAba]             = useState<'posts' | 'gatilhos'>('posts')
-  const [posts, setPosts]              = useState<PostAgendado[]>(POSTS_INICIAIS)
-  const [gatilhos, setGatilhos]        = useState<Gatilho[]>(GATILHOS_INICIAIS)
-  const [modalPost, setModalPost]      = useState<{ post?: PostAgendado } | null>(null)
-  const [modalGatilho, setModalGat]    = useState<{ gatilho?: Gatilho } | null>(null)
-  const [expandido, setExpandido]      = useState<string | null>(null)
 
   const guardarPost = (p: PostAgendado) => {
     setPosts(prev => prev.find(x => x.id === p.id) ? prev.map(x => x.id === p.id ? p : x) : [...prev, p])
