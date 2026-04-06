@@ -63,6 +63,9 @@ export default function Perfil() {
   const [plataformas, setPlats]     = useState<string[]>([])
   const [tom, setTom]               = useState('')
 
+  // Handles das plataformas
+  const [handles, setHandles] = useState<Record<string, string>>({})
+
   // Referidos
   const [referidos, setReferidos]   = useState<DadosReferidos | null>(null)
   const [copiado, setCopiado]       = useState(false)
@@ -84,6 +87,7 @@ export default function Perfil() {
         setNichos(data.nichos || [])
         setPlats(data.plataformas_principais || [])
         setTom(data.tom_preferido || '')
+        setHandles(data.handles || {})
       }
 
       // Carregar ou criar referidos
@@ -152,6 +156,7 @@ export default function Perfil() {
         nichos,
         plataformas_principais: plataformas,
         tom_preferido: tom,
+        handles,
       })
       setGuardado(true)
       setTimeout(() => setGuardado(false), 3000)
@@ -402,6 +407,82 @@ export default function Perfil() {
                   <span className="text-xs mt-0.5" style={{ color: 'var(--cor-texto-muted)' }}>{t.desc}</span>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Handles das plataformas */}
+          <div className="card flex flex-col gap-4">
+            <div>
+              <h3 className="font-semibold" style={{ fontFamily: 'var(--fonte-display)' }}>
+                Os teus usernames
+              </h3>
+              <p className="text-xs mt-1" style={{ color: 'var(--cor-texto-muted)' }}>
+                Regista os teus @usernames para publicar diretamente da AdPulse
+              </p>
+            </div>
+            <div className="flex flex-col gap-3">
+              {[
+                { id: 'instagram', label: 'Instagram',  emoji: '📸', placeholder: 'username',  baseUrl: 'https://instagram.com/' },
+                { id: 'tiktok',    label: 'TikTok',     emoji: '🎵', placeholder: 'username',  baseUrl: 'https://tiktok.com/@' },
+                { id: 'youtube',   label: 'YouTube',    emoji: '▶️', placeholder: 'username',  baseUrl: 'https://youtube.com/@' },
+                { id: 'linkedin',  label: 'LinkedIn',   emoji: '💼', placeholder: 'username',  baseUrl: 'https://linkedin.com/in/' },
+                { id: 'twitter',   label: 'Twitter/X',  emoji: '🐦', placeholder: 'username',  baseUrl: 'https://x.com/' },
+                { id: 'facebook',  label: 'Facebook',   emoji: '👥', placeholder: 'pagina',    baseUrl: 'https://facebook.com/' },
+              ].map(p => {
+                const lista: string[] = Array.isArray(handles[p.id]) ? handles[p.id] : handles[p.id] ? [handles[p.id]] : ['']
+                return (
+                  <div key={p.id} className="p-3 rounded-xl flex flex-col gap-2"
+                    style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)' }}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{p.emoji}</span>
+                        <p className="text-sm font-medium">{p.label}</p>
+                        <span className="text-xs px-1.5 py-0.5 rounded-full"
+                          style={{ background: 'rgba(124,123,250,0.1)', color: 'var(--cor-marca)', border: '1px solid rgba(124,123,250,0.2)' }}>
+                          {lista.filter(h => h.trim()).length} conta{lista.filter(h => h.trim()).length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <button onClick={() => setHandles(prev => ({ ...prev, [p.id]: [...lista, ''] }))}
+                        className="text-xs flex items-center gap-1 px-2 py-1 rounded-lg"
+                        style={{ color: 'var(--cor-marca)', background: 'rgba(124,123,250,0.1)', border: '1px solid rgba(124,123,250,0.2)', cursor: 'pointer' }}>
+                        <Plus size={11} /> Adicionar conta
+                      </button>
+                    </div>
+                    {lista.map((h, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs" style={{ color: 'var(--cor-texto-fraco)', flexShrink: 0 }}>@</span>
+                        <input
+                          value={h}
+                          onChange={e => {
+                            const nova = [...lista]
+                            nova[i] = e.target.value.replace('@', '')
+                            setHandles(prev => ({ ...prev, [p.id]: nova }))
+                          }}
+                          placeholder={p.placeholder}
+                          className="input-campo flex-1"
+                          style={{ padding: '4px 8px', fontSize: 12 }}
+                        />
+                        {h && (
+                          <a href={`${p.baseUrl}${h}`} target="_blank" rel="noopener noreferrer"
+                            className="text-xs px-2 py-1 rounded-lg flex-shrink-0"
+                            style={{ background: 'rgba(124,123,250,0.1)', color: 'var(--cor-marca)', border: '1px solid rgba(124,123,250,0.2)', textDecoration: 'none' }}>
+                            Ver
+                          </a>
+                        )}
+                        {lista.length > 1 && (
+                          <button onClick={() => {
+                            const nova = lista.filter((_, j) => j !== i)
+                            setHandles(prev => ({ ...prev, [p.id]: nova }))
+                          }}
+                          style={{ color: 'var(--cor-erro)', background: 'none', border: 'none', cursor: 'pointer', padding: 2, flexShrink: 0 }}>
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
             </div>
           </div>
 
