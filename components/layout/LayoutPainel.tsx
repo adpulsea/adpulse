@@ -8,7 +8,7 @@ import { useRouter } from 'next/router'
 import {
   Zap, LayoutDashboard, Sparkles, TrendingUp,
   BarChart2, FolderOpen, Menu, X, LogOut,
-  ChevronRight, CalendarDays, Bot, Workflow, UserCircle, Layers, ImageIcon, Users, BookOpen, History
+  ChevronRight, CalendarDays, Bot, Workflow, UserCircle, Layers, ImageIcon, Users, BookOpen, History, Frame
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { fazerLogout } from '@/lib/auth'
@@ -29,6 +29,7 @@ const ITENS_NAV = [
   { label: 'Agentes IA',          href: '/painel/agentes',     icone: Bot             },
   { label: 'Templates',           href: '/painel/templates',   icone: BookOpen        },
   { label: 'Histórico',           href: '/painel/historico',   icone: History         },
+  { label: 'Fundos',              href: '/painel/fundos',      icone: Frame           },
   { label: 'Equipa',              href: '/painel/equipa',      icone: Users           },
   { label: 'Perfil',              href: '/painel/perfil',      icone: UserCircle      },
 ]
@@ -104,7 +105,7 @@ export default function LayoutPainel({ children, titulo }: Props) {
             {ITENS_NAV.map((item) => {
               const Icone = item.icone
               const ativo = router.pathname === item.href
-              const isNovo = ['/painel/agentes', '/painel/automacao', '/painel/workspaces', '/painel/media', '/painel/equipa', '/painel/templates'].includes(item.href)
+              const isNovo = ['/painel/agentes', '/painel/automacao', '/painel/workspaces', '/painel/media', '/painel/equipa', '/painel/templates', '/painel/fundos'].includes(item.href)
               return (
                 <Link key={item.href} href={item.href} onClick={() => setSidebarAberta(false)}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
