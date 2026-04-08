@@ -3,7 +3,6 @@
 // ============================================
 
 import type { NextApiRequest, NextApiResponse } from 'next'
-import FormData from 'form-data'
 
 export const config = { api: { bodyParser: { sizeLimit: '10mb' } } }
 
@@ -19,17 +18,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64
 
-    const formData = new FormData()
-    formData.append('image_file_b64', base64Data)
-    formData.append('size', 'auto')
-
     const response = await fetch('https://api.remove.bg/v1.0/removebg', {
       method: 'POST',
       headers: {
         'X-Api-Key': apiKey,
-        ...formData.getHeaders(),
+        'Content-Type': 'application/json',
       },
-      body: formData as any,
+      body: JSON.stringify({
+        image_file_b64: base64Data,
+        size: 'auto',
+      }),
     })
 
     if (!response.ok) {
