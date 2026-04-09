@@ -29,13 +29,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-opus-4-6',
+          model: 'claude-haiku-4-5-20251001',
           max_tokens: 1500,
           system: prompt_sistema,
           messages: mensagens,
         }),
       })
       const data = await resp.json()
+      if (data.error) {
+        console.error('Anthropic erro:', data.error)
+        throw new Error(data.error.message)
+      }
       const resultado = data.content?.[0]?.text || 'Tarefa concluída.'
       return res.status(200).json({ resultado })
     }
