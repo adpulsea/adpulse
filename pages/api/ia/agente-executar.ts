@@ -10,17 +10,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { prompt_sistema, tarefa, historico = [] } = req.body
   if (!prompt_sistema || !tarefa) return res.status(400).json({ erro: 'Dados em falta' })
 
-  const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY
-  if (!apiKey) return res.status(500).json({ erro: 'API key não configurada' })
+  const mensagens = [
+    ...historico,
+    { role: 'user', content: tarefa },
+  ]
 
-  try {
-    const mensagens = [
-      ...historico,
-      { role: 'user', content: tarefa },
-    ]
-
-    // Tentar Anthropic primeiro
-    if (process.env.ANTHROPIC_API_KEY) {
+  // Tentar Anthropic primeiro — se falhar (sem créditos), usa OpenAI
+  if (process.env.ANTHROPIC_API_KEY) {
+    try {
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -36,36 +33,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }),
       })
       const data = await resp.json()
-      if (data.error) {
-        console.error('Anthropic erro:', data.error)
-        throw new Error(data.error.message)
+      if (!data.error) {
+        const resultado = data.content?.[0]?.text || 'Tarefa concluída.'
+        return res.status(200).json({ resultado })
       }
-      const resultado = data.content?.[0]?.text || 'Tarefa concluída.'
-      return res.status(200).json({ resultado })
+      console.warn('Anthropic sem créditos, a usar OpenAI:', data.error.message)
+    } catch (err) {
+      console.warn('Anthropic erro, a usar OpenAI:', err)
     }
-
-    // Fallback OpenAI
-    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        max_tokens: 1500,
-        messages: [
-          { role: 'system', content: prompt_sistema },
-          ...mensagens,
-        ],
-      }),
-    })
-    const data = await resp.json()
-    const resultado = data.choices?.[0]?.message?.content || 'Tarefa concluída.'
-    return res.status(200).json({ resultado })
-
-  } catch (err) {
-    console.error(err)
-    return res.status(500).json({ erro: 'Erro ao executar agente' })
   }
+
+  // Fallback OpenAI
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          max_tokens: 1500,
+          messages: [
+            { role: 'system', content: prompt_sistema },
+            ...mensagens,
+          ],
+        }),
+      })
+      const data = await resp.json()
+      if (data.error) throw new Error(data.error.message)
+      const resultado = data.choices?.[0]?.message?.content || 'Tarefa concluída.'
+      return res.status(200).json({ resultado })
+    } catch (err) {
+      console.error('OpenAI erro:', err)
+    }
+  }
+
+  return res.status(500).json({ erro: 'Nenhuma API disponível. Verifica os créditos.' })
 }
