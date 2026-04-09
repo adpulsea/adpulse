@@ -306,7 +306,7 @@ export default function AgentesIA() {
   const [novaTarefaTitulo, setNovaTarefaTitulo] = useState('')
   const [novaTarefaDesc, setNovaTarefaDesc]   = useState('')
 
-  // Init agentes
+  // Init agentes + carregar tarefas do Supabase
   useEffect(() => {
     const agentesIniciais: Agente[] = AGENTES_TEMPLATE.map(a => ({
       ...a,
@@ -314,7 +314,31 @@ export default function AgentesIA() {
       ativo: true,
     }))
     setAgentes(agentesIniciais)
-  }, [])
+    if (utilizador) carregarTarefas(agentesIniciais)
+  }, [utilizador])
+
+  const carregarTarefas = async (agentesBase: Agente[]) => {
+    const { data } = await supabase
+      .from('agentes_tarefas')
+      .select('*')
+      .eq('utilizador_id', utilizador?.id)
+      .order('criado_em', { ascending: false })
+      .limit(100)
+    if (!data) return
+    setAgentes(agentesBase.map(a => ({
+      ...a,
+      tarefas: data.filter((t: any) => t.agente_id === a.id).map((t: any) => ({
+        id: t.id,
+        agente_id: t.agente_id,
+        titulo: t.titulo,
+        descricao: t.descricao || '',
+        estado: t.estado as EstadoTarefa,
+        resultado: t.resultado,
+        criado_em: t.criado_em,
+        aprovado_em: t.aprovado_em,
+      }))
+    })))
+  }
 
   // Contar pendentes de aprovação
   useEffect(() => {
@@ -329,34 +353,39 @@ export default function AgentesIA() {
 
   // ── Gerar conteúdo do dia ──
   const gerarConteudoDia = async () => {
+    if (!utilizador) return
     setGerandoDia(true)
     setVista('equipa')
 
-    // Adicionar tarefas a cada agente em sequência
     for (const tarefaTemplate of TAREFAS_DIARIAS) {
       const agente = agentes.find(a => a.id === tarefaTemplate.agente_id)
       if (!agente || !agente.ativo) continue
 
-      const novaTarefa: Tarefa = {
-        id: `${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
-        agente_id: tarefaTemplate.agente_id,
-        titulo: tarefaTemplate.titulo,
-        descricao: tarefaTemplate.descricao,
-        estado: 'em_progresso',
-        resultado: null,
-        criado_em: new Date().toISOString(),
-        aprovado_em: null,
-      }
+      // Inserir no Supabase como em_progresso
+      const { data: novaTarefaDB } = await supabase
+        .from('agentes_tarefas')
+        .insert({
+          utilizador_id: utilizador.id,
+          agente_id: tarefaTemplate.agente_id,
+          titulo: tarefaTemplate.titulo,
+          descricao: tarefaTemplate.descricao,
+          estado: 'em_progresso',
+          resultado: null,
+        })
+        .select()
+        .single()
 
-      // Adicionar tarefa em progresso
+      if (!novaTarefaDB) continue
+      const novaTarefa: Tarefa = { ...novaTarefaDB, estado: 'em_progresso' }
+
+      // Mostrar em progresso no UI
       setAgentes(prev => prev.map(a =>
         a.id === tarefaTemplate.agente_id
           ? { ...a, tarefas: [novaTarefa, ...a.tarefas] }
           : a
       ))
 
-      // Aguardar um pouco para efeito visual
-      await new Promise(r => setTimeout(r, 400))
+      await new Promise(r => setTimeout(r, 300))
 
       // Chamar API
       try {
@@ -371,29 +400,27 @@ export default function AgentesIA() {
         const data = await resp.json()
         const resultado = data.resultado || 'Tarefa concluída.'
 
+        // Guardar resultado no Supabase
+        await supabase
+          .from('agentes_tarefas')
+          .update({ estado: 'aguarda_aprovacao', resultado })
+          .eq('id', novaTarefaDB.id)
+
         setAgentes(prev => prev.map(a =>
           a.id === tarefaTemplate.agente_id
-            ? {
-                ...a,
-                tarefas: a.tarefas.map(t =>
-                  t.id === novaTarefa.id
-                    ? { ...t, estado: 'aguarda_aprovacao', resultado }
-                    : t
-                )
-              }
+            ? { ...a, tarefas: a.tarefas.map(t => t.id === novaTarefaDB.id ? { ...t, estado: 'aguarda_aprovacao', resultado } : t) }
             : a
         ))
       } catch {
+        const resultado = `${tarefaTemplate.titulo} preparado. Aguarda a tua aprovação.`
+        await supabase
+          .from('agentes_tarefas')
+          .update({ estado: 'aguarda_aprovacao', resultado })
+          .eq('id', novaTarefaDB.id)
+
         setAgentes(prev => prev.map(a =>
           a.id === tarefaTemplate.agente_id
-            ? {
-                ...a,
-                tarefas: a.tarefas.map(t =>
-                  t.id === novaTarefa.id
-                    ? { ...t, estado: 'aguarda_aprovacao', resultado: `${tarefaTemplate.titulo} preparado. Aguarda a tua aprovação.` }
-                    : t
-                )
-              }
+            ? { ...a, tarefas: a.tarefas.map(t => t.id === novaTarefaDB.id ? { ...t, estado: 'aguarda_aprovacao', resultado } : t) }
             : a
         ))
       }
@@ -403,16 +430,19 @@ export default function AgentesIA() {
   }
 
   // ── Aprovar tarefa ──
-  const aprovarTarefa = (agenteId: string, tarefaId: string) => {
+  const aprovarTarefa = async (agenteId: string, tarefaId: string) => {
+    const aprovado_em = new Date().toISOString()
+    await supabase.from('agentes_tarefas').update({ estado: 'aprovado', aprovado_em }).eq('id', tarefaId)
     setAgentes(prev => prev.map(a =>
       a.id === agenteId
-        ? { ...a, tarefas: a.tarefas.map(t => t.id === tarefaId ? { ...t, estado: 'aprovado', aprovado_em: new Date().toISOString() } : t) }
+        ? { ...a, tarefas: a.tarefas.map(t => t.id === tarefaId ? { ...t, estado: 'aprovado', aprovado_em } : t) }
         : a
     ))
   }
 
   // ── Rejeitar tarefa ──
-  const rejeitarTarefa = (agenteId: string, tarefaId: string) => {
+  const rejeitarTarefa = async (agenteId: string, tarefaId: string) => {
+    await supabase.from('agentes_tarefas').update({ estado: 'rejeitado' }).eq('id', tarefaId)
     setAgentes(prev => prev.map(a =>
       a.id === agenteId
         ? { ...a, tarefas: a.tarefas.map(t => t.id === tarefaId ? { ...t, estado: 'rejeitado' } : t) }
