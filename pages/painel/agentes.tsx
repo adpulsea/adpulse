@@ -5,7 +5,7 @@
 import Head from 'next/head'
 import { useState, useEffect, useRef } from 'react'
 import {
-  Bot, Plus, Play, Trash2, Check, Loader, X, Sparkles,
+  Bot, Plus, Play, Trash2, Check, Loader, X, Sparkles, Copy,
   ChevronRight, Clock, AlertCircle, CheckCircle, Edit3,
   Send, RefreshCw, Eye, ThumbsUp, ThumbsDown, Bell,
   Brain, Pen, Palette, Search, Calendar, BarChart2,
@@ -728,6 +728,13 @@ export default function AgentesIA() {
   const [chatMsgs, setChatMsgs]           = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
   const chatRef                           = useRef<HTMLDivElement>(null)
   const [notificacoes, setNotificacoes]   = useState(0)
+  const [copiado, setCopiado]             = useState<string | null>(null)
+
+  const copiar = (texto: string, id: string) => {
+    navigator.clipboard.writeText(texto)
+    setCopiado(id)
+    setTimeout(() => setCopiado(null), 2000)
+  }
   const [novaTarefaModal, setNovaTarefaModal] = useState<string | null>(null)
   const [novaTarefaTitulo, setNovaTarefaTitulo] = useState('')
   const [novaTarefaDesc, setNovaTarefaDesc]   = useState('')
@@ -1146,9 +1153,23 @@ export default function AgentesIA() {
 
                       {/* Resultado */}
                       {tarefa.resultado && (
-                        <div className="p-4 rounded-xl text-sm whitespace-pre-wrap leading-relaxed"
-                          style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)', color: 'var(--cor-texto-muted)', maxHeight: 300, overflowY: 'auto' }}>
-                          {tarefa.resultado}
+                        <div className="flex flex-col gap-2">
+                          <div className="p-4 rounded-xl text-sm whitespace-pre-wrap leading-relaxed"
+                            style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)', color: 'var(--cor-texto-muted)', maxHeight: 350, overflowY: 'auto' }}>
+                            {tarefa.resultado}
+                          </div>
+                          {/* Botão copiar */}
+                          <button
+                            onClick={() => copiar(tarefa.resultado || '', tarefa.id)}
+                            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs self-end transition-all"
+                            style={{
+                              background: copiado === tarefa.id ? 'rgba(52,211,153,0.15)' : 'var(--cor-elevado)',
+                              color: copiado === tarefa.id ? '#34d399' : 'var(--cor-texto-muted)',
+                              border: `1px solid ${copiado === tarefa.id ? 'rgba(52,211,153,0.3)' : 'var(--cor-borda)'}`,
+                              cursor: 'pointer',
+                            }}>
+                            {copiado === tarefa.id ? <><Check size={12} /> Copiado!</> : <><Copy size={12} /> Copiar conteúdo</>}
+                          </button>
                         </div>
                       )}
 
