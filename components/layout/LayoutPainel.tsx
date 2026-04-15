@@ -8,7 +8,7 @@ import { useRouter } from 'next/router'
 import {
   Zap, LayoutDashboard, Sparkles, TrendingUp,
   BarChart2, FolderOpen, Menu, X, LogOut,
-  ChevronRight, CalendarDays, Bot, Workflow, UserCircle, Layers, ImageIcon, Users, BookOpen, History, Frame, HeartHandshake
+  ChevronRight, CalendarDays, Bot, Workflow, UserCircle, Layers, ImageIcon, Users, BookOpen, History, Frame, HeartHandshake, Wand2
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { fazerLogout } from '@/lib/auth'
