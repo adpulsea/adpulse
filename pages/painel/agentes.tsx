@@ -719,7 +719,7 @@ export default function AgentesIA() {
   const { utilizador } = useAuth()
   const [agentes, setAgentes]             = useState<Agente[]>([])
   const [agenteAtivo, setAgenteAtivo]     = useState<string | null>(null)
-  const [vista, setVista]                 = useState<'equipa' | 'aprovacao' | 'chat'>('equipa')
+  const [vista, setVista]                 = useState<'equipa' | 'aprovacao' | 'aprovado' | 'publicado' | 'chat'>('equipa')
   const [gerandoDia, setGerandoDia]       = useState(false)
   const [tarefaChat, setTarefaChat]       = useState<Tarefa | null>(null)
   const [agenteChat, setAgenteChat]       = useState<Agente | null>(null)
@@ -1004,8 +1004,10 @@ export default function AgentesIA() {
             {/* Tabs */}
             <div className="flex items-center gap-2 mt-5 pt-5" style={{ borderTop: '1px solid rgba(124,123,250,0.15)' }}>
               {[
-                { id: 'equipa',    label: 'Equipa',           emoji: '👥' },
-                { id: 'aprovacao', label: `Aprovação (${notificacoes})`, emoji: '✅' },
+                { id: 'equipa',    label: 'Equipa',                      emoji: '👥' },
+                { id: 'aprovacao', label: `Aprovação (${notificacoes})`,  emoji: '⏳' },
+                { id: 'aprovado',  label: 'Aprovado',                    emoji: '✅' },
+                { id: 'publicado', label: 'Publicado',                   emoji: '🚀' },
               ].map(tab => (
                 <button key={tab.id} onClick={() => setVista(tab.id as any)}
                   className="px-4 py-2 rounded-xl text-sm font-medium transition-all"
@@ -1195,6 +1197,141 @@ export default function AgentesIA() {
                   ))}
                 </>
               )}
+            </div>
+          )}
+
+          {/* ── Vista: Aprovado ── */}
+          {vista === 'aprovado' && (
+            <div className="flex flex-col gap-4">
+              {(() => {
+                const tarefasAprovadas = agentes.flatMap(a =>
+                  a.tarefas.filter(t => t.estado === 'aprovado').map(t => ({ ...t, agente: a }))
+                )
+                return tarefasAprovadas.length === 0 ? (
+                  <div className="card flex flex-col items-center justify-center py-16 gap-4">
+                    <div className="text-5xl">📋</div>
+                    <p className="font-semibold">Sem conteúdo aprovado</p>
+                    <p className="text-sm" style={{ color: 'var(--cor-texto-muted)' }}>Aprova conteúdo na aba "Aprovação" primeiro.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium" style={{ color: 'var(--cor-texto-muted)' }}>
+                        {tarefasAprovadas.length} peça{tarefasAprovadas.length !== 1 ? 's' : ''} aprovada{tarefasAprovadas.length !== 1 ? 's' : ''} — pronta{tarefasAprovadas.length !== 1 ? 's' : ''} a publicar
+                      </p>
+                      <button
+                        onClick={() => {
+                          const tudo = tarefasAprovadas.map(t => `=== ${t.agente.nome} — ${t.titulo} ===
+${t.resultado}`).join('
+
+')
+                          navigator.clipboard.writeText(tudo)
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm"
+                        style={{ background: 'rgba(124,123,250,0.15)', color: 'var(--cor-marca)', border: '1px solid rgba(124,123,250,0.3)', cursor: 'pointer' }}>
+                        <Copy size={14} /> Copiar tudo
+                      </button>
+                    </div>
+                    {tarefasAprovadas.map(({ agente, ...tarefa }) => (
+                      <div key={tarefa.id} className="card flex flex-col gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                            style={{ background: `${agente.cor}20`, border: `1px solid ${agente.cor}40` }}>
+                            {agente.avatar}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold">{agente.nome} <span style={{ color: 'var(--cor-texto-fraco)', fontWeight: 'normal' }}>· {agente.cargo}</span></p>
+                            <p className="text-xs font-medium mt-0.5" style={{ color: agente.cor }}>{tarefa.titulo}</p>
+                          </div>
+                          <span className="text-xs px-2 py-1 rounded-full" style={{ background: 'rgba(52,211,153,0.15)', color: '#34d399', border: '1px solid rgba(52,211,153,0.3)' }}>
+                            ✅ Aprovado
+                          </span>
+                        </div>
+
+                        {tarefa.resultado && (
+                          <div className="flex flex-col gap-2">
+                            <div className="p-4 rounded-xl text-sm whitespace-pre-wrap leading-relaxed"
+                              style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)', color: 'var(--cor-texto-muted)', maxHeight: 350, overflowY: 'auto' }}>
+                              {tarefa.resultado}
+                            </div>
+                            <div className="flex gap-2 justify-end">
+                              <button onClick={() => copiar(tarefa.resultado || '', tarefa.id)}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs transition-all"
+                                style={{
+                                  background: copiado === tarefa.id ? 'rgba(52,211,153,0.15)' : 'var(--cor-elevado)',
+                                  color: copiado === tarefa.id ? '#34d399' : 'var(--cor-texto-muted)',
+                                  border: `1px solid ${copiado === tarefa.id ? 'rgba(52,211,153,0.3)' : 'var(--cor-borda)'}`,
+                                  cursor: 'pointer',
+                                }}>
+                                {copiado === tarefa.id ? <><Check size={12} /> Copiado!</> : <><Copy size={12} /> Copiar</>}
+                              </button>
+                              <button onClick={async () => {
+                                await supabase.from('agentes_tarefas').update({ estado: 'publicado' }).eq('id', tarefa.id)
+                                setAgentes(prev => prev.map(a =>
+                                  a.id === agente.id
+                                    ? { ...a, tarefas: a.tarefas.map(t => t.id === tarefa.id ? { ...t, estado: 'publicado' } : t) }
+                                    : a
+                                ))
+                              }}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs"
+                                style={{ background: 'rgba(96,165,250,0.15)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.3)', cursor: 'pointer' }}>
+                                🚀 Marcar como publicado
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </>
+                )
+              })()}
+            </div>
+          )}
+
+          {/* ── Vista: Publicado ── */}
+          {vista === 'publicado' && (
+            <div className="flex flex-col gap-4">
+              {(() => {
+                const tarefasPublicadas = agentes.flatMap(a =>
+                  a.tarefas.filter(t => t.estado === 'publicado').map(t => ({ ...t, agente: a }))
+                )
+                return tarefasPublicadas.length === 0 ? (
+                  <div className="card flex flex-col items-center justify-center py-16 gap-4">
+                    <div className="text-5xl">🚀</div>
+                    <p className="font-semibold">Sem conteúdo publicado ainda</p>
+                    <p className="text-sm" style={{ color: 'var(--cor-texto-muted)' }}>Quando publicares conteúdo aparece aqui.</p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium" style={{ color: 'var(--cor-texto-muted)' }}>
+                      {tarefasPublicadas.length} peça{tarefasPublicadas.length !== 1 ? 's' : ''} publicada{tarefasPublicadas.length !== 1 ? 's' : ''}
+                    </p>
+                    {tarefasPublicadas.map(({ agente, ...tarefa }) => (
+                      <div key={tarefa.id} className="card flex flex-col gap-3" style={{ opacity: 0.75 }}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                            style={{ background: `${agente.cor}20`, border: `1px solid ${agente.cor}40` }}>
+                            {agente.avatar}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold">{agente.nome}</p>
+                            <p className="text-xs" style={{ color: agente.cor }}>{tarefa.titulo}</p>
+                          </div>
+                          <span className="text-xs px-2 py-1 rounded-full" style={{ background: 'rgba(96,165,250,0.15)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.3)' }}>
+                            🚀 Publicado
+                          </span>
+                        </div>
+                        {tarefa.resultado && (
+                          <div className="p-3 rounded-xl text-xs whitespace-pre-wrap leading-relaxed"
+                            style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)', color: 'var(--cor-texto-fraco)', maxHeight: 200, overflowY: 'auto' }}>
+                            {tarefa.resultado}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </>
+                )
+              })()}
             </div>
           )}
 
