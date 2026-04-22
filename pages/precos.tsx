@@ -12,7 +12,7 @@ import {
 import { useAuth } from '@/hooks/useAuth'
 
 const checkout = async () => {
-  const r = await fetch('/api/checkout', { method: "POST" })
+  const res = await fetch('/api/checkout', { method: "POST" })
   const data = await res.json()
   window.location.href = data.url
 }
