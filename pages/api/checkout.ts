@@ -18,8 +18,8 @@ export default async function handler(req, res) {
         quantity: 1,
       },
     ],
-    success_url: "https://TEU-DOMINIO/dashboard",
-    cancel_url: "https://TEU-DOMINIO/pricing",
+    success_url: "https://adpulse-pf3b-git-master-adpulsea-3423s-projects.vercel.app/dashboard",
+    cancel_url: "https://adpulse-pf3b-git-master-adpulsea-3423s-projects.vercel.app/pricing",
   })
 
   res.status(200).json({ url: session.url })
