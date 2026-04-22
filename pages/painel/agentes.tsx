@@ -1222,7 +1222,6 @@ export default function AgentesIA() {
                       <button
                         onClick={() => {
                           const tudo = tarefasAprovadas.map(t => `=== ${t.agente.nome} — ${t.titulo} ===
-const tudo = tarefasAprovadas
   .map(t => `=== ${t.agente.nome} — ${t.titulo} ===\n${t.resultado}`)
   .join('\n\n')
 ')
