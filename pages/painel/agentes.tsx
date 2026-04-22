@@ -1220,14 +1220,14 @@ export default function AgentesIA() {
                         {tarefasAprovadas.length} peça{tarefasAprovadas.length !== 1 ? 's' : ''} aprovada{tarefasAprovadas.length !== 1 ? 's' : ''} — pronta{tarefasAprovadas.length !== 1 ? 's' : ''} a publicar
                       </p>
                       <button
-                        onClick={() => {
-                          const tudo = tarefasAprovadas.map(t => `=== ${t.agente.nome} — ${t.titulo} ===
+                       onClick={() => {
+  const tudo = tarefasAprovadas.map(t => `=== ${t.agente.nome} — ${t.titulo} ===
   .map(t => `=== ${t.agente.nome} — ${t.titulo} ===\n${t.resultado}`)
   .join('\n\n')
 ')
 ')
-                          navigator.clipboard.writeText(tudo)
-                        }}
+  navigator.clipboard.writeText(tudo)
+}}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm"
                         style={{ background: 'rgba(124,123,250,0.15)', color: 'var(--cor-marca)', border: '1px solid rgba(124,123,250,0.3)', cursor: 'pointer' }}>
                         <Copy size={14} /> Copiar tudo
