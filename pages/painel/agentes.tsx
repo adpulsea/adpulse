@@ -1221,11 +1221,10 @@ export default function AgentesIA() {
                       </p>
                       <button
                        onClick={() => {
-  const tudo = tarefasAprovadas.map(t => `=== ${t.agente.nome} — ${t.titulo} ===
-  .map(t => `=== ${t.agente.nome} — ${t.titulo} ===\n${t.resultado}`)
-  .join('\n\n')
-')
-')
+  const tudo = tarefasAprovadas
+    .map(t => `=== ${t.agente.nome} — ${t.titulo} ===\n${t.resultado}`)
+    .join('\n\n')
+
   navigator.clipboard.writeText(tudo)
 }}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm"
