@@ -1222,8 +1222,9 @@ export default function AgentesIA() {
                       <button
                         onClick={() => {
                           const tudo = tarefasAprovadas.map(t => `=== ${t.agente.nome} — ${t.titulo} ===
+const tudo = tarefasAprovadas.map(t => `=== ${t.agente.nome} — ${t.titulo} ===
 ${t.resultado}`).join('
-
+')
 ')
                           navigator.clipboard.writeText(tudo)
                         }}
