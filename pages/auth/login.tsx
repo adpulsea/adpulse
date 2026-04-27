@@ -52,6 +52,7 @@ export default function PaginaLogin() {
         className="min-h-screen flex items-center justify-center px-4 py-12"
         style={{ background: 'var(--cor-fundo)' }}
       >
+        {/* Background (não bloqueia cliques) */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div
             className="efeito-glow w-96 h-96 top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2"
@@ -59,7 +60,9 @@ export default function PaginaLogin() {
           />
         </div>
 
-        <div className="w-full max-w-md relative z-10">
+        {/* Container PRINCIPAL (z alto) */}
+        <div className="w-full max-w-md relative z-50">
+
           <div className="text-center mb-8">
             <Link href="/" className="inline-flex items-center gap-2.5 mb-6 group">
               <div
@@ -94,6 +97,7 @@ export default function PaginaLogin() {
 
           <div className="card">
             <form onSubmit={aoSubmeter} className="flex flex-col gap-5">
+
               {erro && (
                 <div
                   className="flex items-start gap-3 p-4 rounded-xl text-sm"
@@ -108,6 +112,7 @@ export default function PaginaLogin() {
                 </div>
               )}
 
+              {/* Email */}
               <div>
                 <label htmlFor="email" className="label-campo">
                   Email
@@ -133,8 +138,9 @@ export default function PaginaLogin() {
                 </div>
               </div>
 
+              {/* Password + Forgot */}
               <div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-2 relative z-50">
                   <label htmlFor="password" className="label-campo mb-0">
                     Password
                   </label>
@@ -142,7 +148,13 @@ export default function PaginaLogin() {
                   <Link
                     href="/auth/recuperar-password"
                     className="text-xs"
-                    style={{ color: 'var(--cor-marca)' }}
+                    style={{
+                      color: 'var(--cor-marca)',
+                      cursor: 'pointer',
+                      pointerEvents: 'auto',
+                      position: 'relative',
+                      zIndex: 999
+                    }}
                   >
                     Esqueceste a password?
                   </Link>
@@ -201,6 +213,7 @@ export default function PaginaLogin() {
                   </>
                 )}
               </button>
+
             </form>
           </div>
 
@@ -217,6 +230,7 @@ export default function PaginaLogin() {
               Criar conta grátis
             </Link>
           </p>
+
         </div>
       </div>
     </>
