@@ -107,11 +107,9 @@ export default function PaginaLogin() {
 
               {/* Password */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label htmlFor="password" className="label-campo mb-0">Password</label>
-                  <a href="#" className="text-xs" style={{ color: 'var(--cor-marca)' }}>
-                    Esqueceste a password?
-                  </a>
+                <Link href="/auth/recuperar-password" className="text-xs" style={{ color: 'var(--cor-marca)' }}>
+                   Esqueceste a password?
+                </Link>
                 </div>
                 <div className="relative">
                   <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
