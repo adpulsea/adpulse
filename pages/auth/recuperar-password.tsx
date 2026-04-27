@@ -2,26 +2,26 @@ import Head from 'next/head'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function RecuperarPassword() {
-  const [email, setEmail] = useState('')
+export default function NovaPassword() {
+  const [password, setPassword] = useState('')
   const [mensagem, setMensagem] = useState('')
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
 
-  const enviar = async (e: React.FormEvent) => {
+  const atualizarPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setMensagem('')
     setErro('')
     setCarregando(true)
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://adpulse-pf3b.vercel.app/auth/nova-password',
+    const { error } = await supabase.auth.updateUser({
+      password: password,
     })
 
     if (error) {
-      setErro('Não foi possível enviar o email de recuperação.')
+      setErro('Erro ao atualizar password.')
     } else {
-      setMensagem('Email enviado. Verifica a tua caixa de entrada.')
+      setMensagem('Password atualizada com sucesso!')
     }
 
     setCarregando(false)
@@ -30,7 +30,7 @@ export default function RecuperarPassword() {
   return (
     <>
       <Head>
-        <title>Recuperar password — AdPulse</title>
+        <title>Nova Password — AdPulse</title>
       </Head>
 
       <main
@@ -45,7 +45,7 @@ export default function RecuperarPassword() {
         }}
       >
         <form
-          onSubmit={enviar}
+          onSubmit={atualizarPassword}
           style={{
             width: '100%',
             maxWidth: 420,
@@ -58,17 +58,15 @@ export default function RecuperarPassword() {
             gap: 16,
           }}
         >
-          <h1 style={{ fontSize: 28, fontWeight: 800 }}>Recuperar password</h1>
-
-          <p style={{ color: '#aaa' }}>
-            Escreve o teu email e vamos enviar um link para criares uma nova password.
-          </p>
+          <h1 style={{ fontSize: 28, fontWeight: 800 }}>
+            Nova password
+          </h1>
 
           <input
-            type="email"
-            placeholder="O teu email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            type="password"
+            placeholder="Nova password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             required
             style={{
               padding: 14,
@@ -92,26 +90,11 @@ export default function RecuperarPassword() {
               cursor: 'pointer',
             }}
           >
-            {carregando ? 'A enviar...' : 'Enviar email de recuperação'}
+            {carregando ? 'A atualizar...' : 'Atualizar password'}
           </button>
 
           {mensagem && <p style={{ color: '#34d399' }}>{mensagem}</p>}
           {erro && <p style={{ color: '#f87171' }}>{erro}</p>}
-
-          <button
-            type="button"
-            onClick={() => {
-              window.location.href = '/auth/login'
-            }}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#aaa',
-              cursor: 'pointer',
-            }}
-          >
-            Voltar ao login
-          </button>
         </form>
       </main>
     </>
