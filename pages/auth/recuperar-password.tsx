@@ -1,5 +1,4 @@
 import Head from 'next/head'
-import Link from 'next/link'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
@@ -9,7 +8,7 @@ export default function RecuperarPassword() {
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
 
-  const enviarRecuperacao = async (e: React.FormEvent) => {
+  const enviar = async (e: React.FormEvent) => {
     e.preventDefault()
     setMensagem('')
     setErro('')
@@ -22,7 +21,7 @@ export default function RecuperarPassword() {
     if (error) {
       setErro('Não foi possível enviar o email de recuperação.')
     } else {
-      setMensagem('Email de recuperação enviado. Verifica a tua caixa de entrada.')
+      setMensagem('Email enviado. Verifica a tua caixa de entrada.')
     }
 
     setCarregando(false)
@@ -34,57 +33,87 @@ export default function RecuperarPassword() {
         <title>Recuperar password — AdPulse</title>
       </Head>
 
-      <div
-        className="min-h-screen flex items-center justify-center px-4"
-        style={{ background: 'var(--cor-fundo)', color: 'var(--cor-texto)' }}
+      <main
+        style={{
+          minHeight: '100vh',
+          background: '#0a0a0f',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+        }}
       >
-        <div className="card w-full max-w-md">
-          <h1 className="text-2xl font-bold mb-2">Recuperar password</h1>
+        <form
+          onSubmit={enviar}
+          style={{
+            width: '100%',
+            maxWidth: 420,
+            background: '#11111a',
+            border: '1px solid #26263a',
+            borderRadius: 20,
+            padding: 28,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}
+        >
+          <h1 style={{ fontSize: 28, fontWeight: 800 }}>Recuperar password</h1>
 
-          <p className="text-sm mb-6" style={{ color: 'var(--cor-texto-muted)' }}>
-            Escreve o teu email e vamos enviar um link para redefinir a tua password.
+          <p style={{ color: '#aaa' }}>
+            Escreve o teu email e vamos enviar um link para criares uma nova password.
           </p>
 
-          <form onSubmit={enviarRecuperacao} className="flex flex-col gap-4">
-            <input
-              type="email"
-              placeholder="o.teu@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="input-campo"
-              required
-            />
+          <input
+            type="email"
+            placeholder="O teu email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            style={{
+              padding: 14,
+              borderRadius: 12,
+              border: '1px solid #333',
+              background: '#0f0f18',
+              color: 'white',
+            }}
+          />
 
-            <button
-              type="submit"
-              className="btn-primario justify-center py-3"
-              disabled={carregando}
-            >
-              {carregando ? 'A enviar...' : 'Enviar email de recuperação'}
-            </button>
-          </form>
+          <button
+            type="submit"
+            disabled={carregando}
+            style={{
+              padding: 14,
+              borderRadius: 12,
+              border: 'none',
+              background: '#7c7bfa',
+              color: 'white',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {carregando ? 'A enviar...' : 'Enviar email de recuperação'}
+          </button>
 
-          {mensagem && (
-            <p className="text-sm mt-4" style={{ color: '#34d399' }}>
-              {mensagem}
-            </p>
-          )}
+          {mensagem && <p style={{ color: '#34d399' }}>{mensagem}</p>}
+          {erro && <p style={{ color: '#f87171' }}>{erro}</p>}
 
-          {erro && (
-            <p className="text-sm mt-4" style={{ color: '#f87171' }}>
-              {erro}
-            </p>
-          )}
-
-          <Link
-            href="/auth/login"
-            className="block text-sm mt-6"
-            style={{ color: 'var(--cor-marca)' }}
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = '/auth/login'
+            }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#aaa',
+              cursor: 'pointer',
+            }}
           >
             Voltar ao login
-          </Link>
-        </div>
-      </div>
+          </button>
+        </form>
+      </main>
     </>
   )
 }
