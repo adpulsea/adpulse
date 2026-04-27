@@ -145,19 +145,20 @@ export default function PaginaLogin() {
                     Password
                   </label>
 
-                  <Link
-                    href="/auth/recuperar-password"
-                    className="text-xs"
-                    style={{
-                      color: 'var(--cor-marca)',
-                      cursor: 'pointer',
-                      pointerEvents: 'auto',
-                      position: 'relative',
-                      zIndex: 999
-                    }}
-                  >
-                    Esqueceste a password?
-                  </Link>
+                  <button
+  type="button"
+  onClick={() => router.push('/auth/recuperar-password')}
+  className="text-xs"
+  style={{
+    color: 'var(--cor-marca)',
+    background: 'transparent',
+    border: 'none',
+    padding: 0,
+    cursor: 'pointer'
+  }}
+>
+  Esqueceste a password?
+</button>
                 </div>
 
                 <div className="relative">
