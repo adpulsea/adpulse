@@ -11,16 +11,17 @@ import { fazerLogin } from '@/lib/auth'
 
 export default function PaginaLogin() {
   const router = useRouter()
-  const [email, setEmail]           = useState('')
-  const [password, setPassword]     = useState('')
-  const [erro, setErro]             = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
-  const [verPassword, setVerPass]   = useState(false)
+  const [verPassword, setVerPass] = useState(false)
 
   const aoSubmeter = async (e: React.FormEvent) => {
     e.preventDefault()
     setErro('')
     setCarregando(true)
+
     try {
       await fazerLogin(email, password)
       router.push('/painel')
@@ -33,6 +34,8 @@ export default function PaginaLogin() {
         } else {
           setErro('Ocorreu um erro. Tenta novamente.')
         }
+      } else {
+        setErro('Ocorreu um erro. Tenta novamente.')
       }
     } finally {
       setCarregando(false)
@@ -50,12 +53,13 @@ export default function PaginaLogin() {
         style={{ background: 'var(--cor-fundo)' }}
       >
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="efeito-glow w-96 h-96 top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2"
-            style={{ background: 'rgba(124, 123, 250, 0.12)' }} />
+          <div
+            className="efeito-glow w-96 h-96 top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2"
+            style={{ background: 'rgba(124, 123, 250, 0.12)' }}
+          />
         </div>
 
         <div className="w-full max-w-md relative z-10">
-
           <div className="text-center mb-8">
             <Link href="/" className="inline-flex items-center gap-2.5 mb-6 group">
               <div
@@ -64,13 +68,25 @@ export default function PaginaLogin() {
               >
                 <Zap size={20} className="text-white" fill="white" />
               </div>
-              <span className="text-xl font-bold" style={{ fontFamily: 'var(--fonte-display)', color: 'var(--cor-texto)' }}>
+
+              <span
+                className="text-xl font-bold"
+                style={{
+                  fontFamily: 'var(--fonte-display)',
+                  color: 'var(--cor-texto)',
+                }}
+              >
                 AdPulse
               </span>
             </Link>
-            <h1 className="text-2xl font-bold mb-2" style={{ fontFamily: 'var(--fonte-display)' }}>
+
+            <h1
+              className="text-2xl font-bold mb-2"
+              style={{ fontFamily: 'var(--fonte-display)' }}
+            >
               Bem-vindo de volta
             </h1>
+
             <p style={{ color: 'var(--cor-texto-muted)' }}>
               Entra na tua conta para continuar
             </p>
@@ -78,42 +94,67 @@ export default function PaginaLogin() {
 
           <div className="card">
             <form onSubmit={aoSubmeter} className="flex flex-col gap-5">
-
               {erro && (
                 <div
                   className="flex items-start gap-3 p-4 rounded-xl text-sm"
-                  style={{ background: 'rgba(248, 113, 113, 0.1)', border: '1px solid rgba(248, 113, 113, 0.3)', color: 'var(--cor-erro)' }}
+                  style={{
+                    background: 'rgba(248, 113, 113, 0.1)',
+                    border: '1px solid rgba(248, 113, 113, 0.3)',
+                    color: 'var(--cor-erro)',
+                  }}
                 >
                   <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
                   {erro}
                 </div>
               )}
 
-              {/* Email */}
               <div>
-                <label htmlFor="email" className="label-campo">Email</label>
+                <label htmlFor="email" className="label-campo">
+                  Email
+                </label>
+
                 <div className="relative">
-                  <Mail size={16} className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
-                    style={{ color: 'var(--cor-texto-fraco)' }} />
+                  <Mail
+                    size={16}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                    style={{ color: 'var(--cor-texto-fraco)' }}
+                  />
+
                   <input
-                    id="email" type="email" value={email}
+                    id="email"
+                    type="email"
+                    value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="o.teu@email.com"
                     className="input-campo pl-11"
-                    required autoComplete="email"
+                    required
+                    autoComplete="email"
                   />
                 </div>
               </div>
 
-              {/* Password */}
               <div>
-                <Link href="/auth/recuperar-password" className="text-xs" style={{ color: 'var(--cor-marca)' }}>
-                   Esqueceste a password?
-                </Link>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="password" className="label-campo mb-0">
+                    Password
+                  </label>
+
+                  <Link
+                    href="/auth/recuperar-password"
+                    className="text-xs"
+                    style={{ color: 'var(--cor-marca)' }}
+                  >
+                    Esqueceste a password?
+                  </Link>
                 </div>
+
                 <div className="relative">
-                  <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
-                    style={{ color: 'var(--cor-texto-fraco)' }} />
+                  <Lock
+                    size={16}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                    style={{ color: 'var(--cor-texto-fraco)' }}
+                  />
+
                   <input
                     id="password"
                     type={verPassword ? 'text' : 'password'}
@@ -121,13 +162,22 @@ export default function PaginaLogin() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="A tua password"
                     className="input-campo pl-11 pr-11"
-                    required autoComplete="current-password" minLength={6}
+                    required
+                    autoComplete="current-password"
+                    minLength={6}
                   />
+
                   <button
                     type="button"
                     onClick={() => setVerPass(!verPassword)}
                     className="absolute right-4 top-1/2 -translate-y-1/2"
-                    style={{ color: 'var(--cor-texto-fraco)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    style={{
+                      color: 'var(--cor-texto-fraco)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
                   >
                     {verPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -146,15 +196,24 @@ export default function PaginaLogin() {
                     A entrar...
                   </>
                 ) : (
-                  <>Entrar <ArrowRight size={16} /></>
+                  <>
+                    Entrar <ArrowRight size={16} />
+                  </>
                 )}
               </button>
             </form>
           </div>
 
-          <p className="text-center text-sm mt-6" style={{ color: 'var(--cor-texto-muted)' }}>
+          <p
+            className="text-center text-sm mt-6"
+            style={{ color: 'var(--cor-texto-muted)' }}
+          >
             Ainda não tens conta?{' '}
-            <Link href="/auth/registar" style={{ color: 'var(--cor-marca)' }} className="font-medium hover:underline">
+            <Link
+              href="/auth/registar"
+              style={{ color: 'var(--cor-marca)' }}
+              className="font-medium hover:underline"
+            >
               Criar conta grátis
             </Link>
           </p>
