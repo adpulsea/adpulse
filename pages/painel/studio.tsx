@@ -38,6 +38,14 @@ const PLATAFORMAS = [
 
 const TONS = ['Informal', 'Profissional', 'Divertido', 'Inspirador', 'Educativo']
 
+const MODOS = [
+  { id: 'normal', label: 'Normal', emoji: '✨' },
+  { id: 'viral', label: 'Viral', emoji: '🔥' },
+  { id: 'autoridade', label: 'Autoridade', emoji: '👑' },
+  { id: 'polemico', label: 'Polémico', emoji: '⚡' },
+  { id: 'educativo', label: 'Educativo', emoji: '🎓' },
+]
+
 const EXEMPLOS = [
   'Dica de produtividade para empreendedores',
   'Rotina da manhã que mudou a minha vida',
@@ -130,6 +138,7 @@ export default function StudioConteudo() {
   const [formato, setFormato] = useState('reel')
   const [plataforma, setPlataforma] = useState('instagram')
   const [tom, setTom] = useState('Informal')
+  const [modo, setModo] = useState('viral')
 
   const [resultado, setResultado] = useState<ResultadoIA | null>(null)
   const [slideAtual, setSlideAtual] = useState(0)
@@ -181,7 +190,7 @@ export default function StudioConteudo() {
             ? { Authorization: `Bearer ${session.access_token}` }
             : {}),
         },
-        body: JSON.stringify({ topico, plataforma, tom, formato }),
+        body: JSON.stringify({ topico, plataforma, tom, formato, modo }),
       })
 
       const dados = await resposta.json()
@@ -277,6 +286,32 @@ export default function StudioConteudo() {
                       }}
                     >
                       {ex}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="card">
+                <h3 className="font-semibold mb-3" style={{ fontFamily: 'var(--fonte-display)' }}>
+                  Modo de criação
+                </h3>
+
+                <div className="flex flex-wrap gap-2">
+                  {MODOS.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => setModo(m.id)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150"
+                      style={{
+                        background:
+                          modo === m.id ? 'rgba(244,114,182,0.16)' : 'var(--cor-elevado)',
+                        border: `1px solid ${
+                          modo === m.id ? 'rgba(244,114,182,0.45)' : 'var(--cor-borda)'
+                        }`,
+                        color: modo === m.id ? '#f472b6' : 'var(--cor-texto-muted)',
+                      }}
+                    >
+                      <span>{m.emoji}</span> {m.label}
                     </button>
                   ))}
                 </div>
