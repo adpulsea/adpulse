@@ -1,17 +1,15 @@
 // ============================================
-// AdPulse — API: Gerar Conteúdo com IA (FINAL)
+// AdPulse — API: Gerar Conteúdo com IA (FINAL PRO)
 // ============================================
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 
-// Cliente admin (server only)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 )
 
-// Garantir resposta segura (nunca undefined)
 function respostaSegura(dados: any) {
   return {
     hook: typeof dados?.hook === 'string' ? dados.hook : 'Hook não gerado.',
@@ -24,6 +22,60 @@ function respostaSegura(dados: any) {
           { tipo: 'Conteúdo', conteudo: dados?.legenda || 'Legenda principal' },
         ],
   }
+}
+
+// 🧠 PROMPTS POR FORMATO
+const promptPorFormato = {
+  reel: `
+Cria um REEL viral.
+- Hook agressivo (primeira frase prende atenção)
+- Texto curto e direto
+- Emoção + impacto
+- CTA forte
+
+Português de Portugal obrigatório.
+`,
+
+  carrossel: `
+Cria um CARROSSEL viral.
+Slide 1: Hook forte
+Slide 2: Problema
+Slide 3: Explicação
+Slide 4: Solução
+Slide 5: CTA
+
+Texto curto por slide.
+
+Português de Portugal obrigatório.
+`,
+
+  post: `
+Cria um POST viral.
+- Hook forte
+- 3 a 5 parágrafos curtos
+- Emojis naturais
+- CTA final
+
+Português de Portugal obrigatório.
+`,
+
+  story: `
+Cria um STORY curto.
+- 1 ideia forte
+- Direto
+- CTA rápido
+
+Português de Portugal obrigatório.
+`,
+
+  short: `
+Cria um SHORT viral.
+- Hook rápido
+- Ritmo acelerado
+- CTA final
+
+Português de Portugal obrigatório.
+`,
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -48,7 +100,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     }
 
-    // 🔐 Obter utilizador (se autenticado)
     const token = req.headers.authorization?.replace('Bearer ', '')
     let utilizadorId: string | null = null
 
@@ -60,7 +111,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       utilizadorId = user?.id || null
     }
 
-    // 🚫 Limite diário
+    // 🔒 Limite diário
     if (utilizadorId) {
       const hoje = new Date().toISOString().split('T')[0]
 
@@ -93,43 +144,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // 🧠 Prompt IA
-const prompt = `
-És um especialista em marketing de conteúdo viral para redes sociais, focado no público de PORTUGAL.
+    // 🎯 PROMPT DINÂMICO
+    const promptBase =
+      promptPorFormato[formato as keyof typeof promptPorFormato] || promptPorFormato.post
 
-Cria conteúdo altamente envolvente, direto, emocional e otimizado para engagement.
+    const prompt = `
+És um especialista em marketing de conteúdo viral para redes sociais em PORTUGAL.
+
+Nunca uses português do Brasil (ex: você, seu, comece).
+Usa sempre: tu, teu, começa, faz, descobre.
 
 Plataforma: ${plataforma}
-Formato: ${formato || 'post'}
-Tom: ${tom || 'informal'}
+Formato: ${formato}
+Tom: ${tom}
 Tópico: ${topico}
 
-⚠️ REGRAS OBRIGATÓRIAS:
-- Escrever em português europeu (Portugal)
-- Nunca usar português do Brasil (ex: “você”, “seu”, “comece”)
-- Usar: tu, teu, começa, faz, descobre
-- Linguagem natural, moderna e direta
-- Evitar frases genéricas
+${promptBase}
 
-🎯 OBJETIVO:
-Criar conteúdo que faça parar o scroll e gerar interação (comentários, partilhas, guardados)
-
-Responde APENAS com JSON válido:
+Responde APENAS com JSON:
 
 {
-  "hook": "gancho muito forte que prende atenção imediatamente",
-  "legenda": "legenda com 3-5 parágrafos curtos, com emojis naturais e CTA no final",
-  "hashtags": ["#hashtag1","#hashtag2","#hashtag3","#hashtag4","#hashtag5","#hashtag6","#hashtag7","#hashtag8"],
+  "hook": "",
+  "legenda": "",
+  "hashtags": ["#","#","#","#","#","#","#","#"],
   "slides": [
-    {"tipo":"Hook","conteudo":"texto impactante"},
-    {"tipo":"Problema","conteudo":"dor real"},
-    {"tipo":"Solução","conteudo":"solução clara"},
-    {"tipo":"CTA","conteudo":"chamada à ação"}
+    {"tipo":"Hook","conteudo":""},
+    {"tipo":"Problema","conteudo":""},
+    {"tipo":"Solução","conteudo":""},
+    {"tipo":"CTA","conteudo":""}
   ]
 }
 `
 
-    // 🤖 Chamada OpenAI
     const respostaOpenAI = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -139,7 +185,7 @@ Responde APENAS com JSON válido:
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         max_tokens: 1000,
-        temperature: 0.8,
+        temperature: 0.85,
         messages: [{ role: 'user', content: prompt }],
       }),
     })
@@ -157,7 +203,6 @@ Responde APENAS com JSON válido:
     const dadosOpenAI = await respostaOpenAI.json()
     const textoResposta = dadosOpenAI.choices?.[0]?.message?.content || '{}'
 
-    // 🔧 Limpar resposta
     const textoLimpo = textoResposta
       .replace(/```json/g, '')
       .replace(/```/g, '')
@@ -178,7 +223,6 @@ Responde APENAS com JSON válido:
 
     const conteudoSeguro = respostaSegura(conteudoGerado)
 
-    // 💾 Guardar no Supabase
     if (utilizadorId) {
       await supabaseAdmin.from('geracoes_ai').insert({
         utilizador_id: utilizadorId,
