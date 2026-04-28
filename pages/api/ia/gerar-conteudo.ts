@@ -94,26 +94,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // 🧠 Prompt IA
-    const prompt = `
-És um especialista em conteúdo viral para redes sociais.
+const prompt = `
+És um especialista em marketing de conteúdo viral para redes sociais, focado no público de PORTUGAL.
 
-Cria conteúdo para:
+Cria conteúdo altamente envolvente, direto, emocional e otimizado para engagement.
+
 Plataforma: ${plataforma}
 Formato: ${formato || 'post'}
 Tom: ${tom || 'informal'}
 Tópico: ${topico}
 
+⚠️ REGRAS OBRIGATÓRIAS:
+- Escrever em português europeu (Portugal)
+- Nunca usar português do Brasil (ex: “você”, “seu”, “comece”)
+- Usar: tu, teu, começa, faz, descobre
+- Linguagem natural, moderna e direta
+- Evitar frases genéricas
+
+🎯 OBJETIVO:
+Criar conteúdo que faça parar o scroll e gerar interação (comentários, partilhas, guardados)
+
 Responde APENAS com JSON válido:
 
 {
-  "hook": "gancho forte",
-  "legenda": "legenda com emojis e CTA",
-  "hashtags": ["#tag1","#tag2","#tag3","#tag4","#tag5","#tag6","#tag7","#tag8"],
+  "hook": "gancho muito forte que prende atenção imediatamente",
+  "legenda": "legenda com 3-5 parágrafos curtos, com emojis naturais e CTA no final",
+  "hashtags": ["#hashtag1","#hashtag2","#hashtag3","#hashtag4","#hashtag5","#hashtag6","#hashtag7","#hashtag8"],
   "slides": [
-    {"tipo":"Hook","conteudo":"..."},
-    {"tipo":"Problema","conteudo":"..."},
-    {"tipo":"Solução","conteudo":"..."},
-    {"tipo":"CTA","conteudo":"..."}
+    {"tipo":"Hook","conteudo":"texto impactante"},
+    {"tipo":"Problema","conteudo":"dor real"},
+    {"tipo":"Solução","conteudo":"solução clara"},
+    {"tipo":"CTA","conteudo":"chamada à ação"}
   ]
 }
 `
