@@ -25,22 +25,18 @@ async function lerBody(req: NextApiRequest): Promise<Buffer> {
   })
 }
 
-async function atualizarPlanoPorMetadata(metadata?: Stripe.Metadata | null) {
-  const utilizadorId = metadata?.utilizadorId
-  const plano = metadata?.plano
-
-  if (!utilizadorId || !plano) return
-
+async function atualizarPlano(utilizadorId: string, plano: string) {
   const { error } = await supabase
     .from('perfis')
     .update({ plano })
     .eq('id', utilizadorId)
 
   if (error) {
-    console.error('Erro ao atualizar plano:', error)
-  } else {
-    console.log(`✅ Plano ${plano} ativado para ${utilizadorId}`)
+    console.error('Erro Supabase ao atualizar plano:', error)
+    throw error
   }
+
+  console.log(`✅ Plano atualizado: ${utilizadorId} → ${plano}`)
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -60,44 +56,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       process.env.STRIPE_WEBHOOK_SECRET!
     )
   } catch (err: any) {
-    console.error('Webhook erro:', err.message)
-    return res.status(400).json({ erro: `Webhook Error: ${err.message}` })
+    console.error('Erro assinatura webhook:', err.message)
+    return res.status(400).json({ erro: err.message })
   }
 
   try {
-    switch (evento.type) {
-      case 'checkout.session.completed': {
-        const session = evento.data.object as Stripe.Checkout.Session
-        await atualizarPlanoPorMetadata(session.metadata)
-        break
+    if (evento.type === 'checkout.session.completed') {
+      const session = evento.data.object as Stripe.Checkout.Session
+
+      const utilizadorId = session.metadata?.utilizadorId
+      const plano = session.metadata?.plano
+
+      console.log('Checkout metadata:', session.metadata)
+
+      if (utilizadorId && plano) {
+        await atualizarPlano(utilizadorId, plano)
       }
+    }
 
-      case 'customer.subscription.updated': {
-        const subscription = evento.data.object as Stripe.Subscription
-        await atualizarPlanoPorMetadata(subscription.metadata)
-        break
+    if (evento.type === 'customer.subscription.updated') {
+      const subscription = evento.data.object as Stripe.Subscription
+
+      const utilizadorId = subscription.metadata?.utilizadorId
+      const plano = subscription.metadata?.plano
+
+      console.log('Subscription metadata:', subscription.metadata)
+
+      if (utilizadorId && plano) {
+        await atualizarPlano(utilizadorId, plano)
       }
+    }
 
-      case 'customer.subscription.deleted': {
-        const subscription = evento.data.object as Stripe.Subscription
-        const utilizadorId = subscription.metadata?.utilizadorId
+    if (evento.type === 'customer.subscription.deleted') {
+      const subscription = evento.data.object as Stripe.Subscription
 
-        if (utilizadorId) {
-          await supabase
-            .from('perfis')
-            .update({ plano: 'gratuito' })
-            .eq('id', utilizadorId)
+      const utilizadorId = subscription.metadata?.utilizadorId
 
-          console.log(`⚠️ Plano revogado para ${utilizadorId}`)
-        }
-
-        break
-      }
-
-      case 'invoice.payment_failed': {
-        const invoice = evento.data.object as Stripe.Invoice
-        console.log('❌ Pagamento falhado:', invoice.customer)
-        break
+      if (utilizadorId) {
+        await atualizarPlano(utilizadorId, 'gratuito')
       }
     }
 
