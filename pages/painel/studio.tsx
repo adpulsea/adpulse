@@ -3,12 +3,11 @@
 // ============================================
 
 import Head from 'next/head'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Sparkles,
   Save,
   Loader,
-  Bot,
   Wand2,
   CheckCircle,
   Copy,
@@ -121,6 +120,17 @@ export default function StudioConteudo() {
   const [guardando, setGuardando] = useState(false)
   const [mensagem, setMensagem] = useState('')
   const [copiado, setCopiado] = useState<string | null>(null)
+
+  useEffect(() => {
+    const ideia = localStorage.getItem('adpulse_ideia')
+
+    if (ideia) {
+      setModoInterface('rapido')
+      setTopico(ideia)
+      setModo('viral')
+      localStorage.removeItem('adpulse_ideia')
+    }
+  }, [])
 
   const iniciarCheckout = async (plano: 'pro' | 'agencia') => {
     if (!utilizador?.email || !utilizador?.id) {
@@ -390,25 +400,13 @@ O conteúdo deve ser diferente dos anteriores, útil, forte e pronto a publicar.
 
           {modoInterface === 'assistente' && (
             <div className="card flex flex-col gap-5">
-              <div className="flex items-start gap-4">
-                <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl"
-                  style={{
-                    background: 'rgba(124,123,250,0.15)',
-                    border: '1px solid rgba(124,123,250,0.3)',
-                  }}
-                >
-                  🤖
-                </div>
-
-                <div>
-                  <h2 className="font-bold text-xl" style={{ fontFamily: 'var(--fonte-display)' }}>
-                    Assistente guiado AdPulse
-                  </h2>
-                  <p className="text-sm mt-1" style={{ color: 'var(--cor-texto-muted)' }}>
-                    Escolhe o objetivo, o especialista e o nicho. A equipa IA cria um pacote completo de conteúdos.
-                  </p>
-                </div>
+              <div>
+                <h2 className="font-bold text-xl" style={{ fontFamily: 'var(--fonte-display)' }}>
+                  🤖 Assistente guiado AdPulse
+                </h2>
+                <p className="text-sm mt-1" style={{ color: 'var(--cor-texto-muted)' }}>
+                  Escolhe o objetivo, o especialista e o nicho. A equipa IA cria um pacote completo de conteúdos.
+                </p>
               </div>
 
               <div>
