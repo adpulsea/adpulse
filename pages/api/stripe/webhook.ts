@@ -24,26 +24,41 @@ async function lerBody(req: NextApiRequest): Promise<Buffer> {
   })
 }
 
-async function atualizarPlano({
+async function atualizarPerfil({
   utilizadorId,
   email,
   plano,
+  customerId,
+  subscriptionId,
+  estado,
+  renovaEm,
 }: {
   utilizadorId?: string | null
   email?: string | null
   plano: string
+  customerId?: string | null
+  subscriptionId?: string | null
+  estado?: string | null
+  renovaEm?: string | null
 }) {
+  const updateData = {
+    plano,
+    stripe_customer_id: customerId || null,
+    stripe_subscription_id: subscriptionId || null,
+    plano_estado: estado || 'ativo',
+    plano_renova_em: renovaEm || null,
+  }
+
   if (utilizadorId) {
     const { data, error } = await supabase
       .from('perfis')
-      .update({ plano })
+      .update(updateData)
       .eq('id', utilizadorId)
       .select()
 
     if (error) throw error
-
     if (data && data.length > 0) {
-      console.log(`✅ Plano atualizado por ID: ${utilizadorId} → ${plano}`)
+      console.log(`✅ Perfil atualizado por ID: ${utilizadorId} → ${plano}`)
       return
     }
   }
@@ -51,19 +66,18 @@ async function atualizarPlano({
   if (email) {
     const { data, error } = await supabase
       .from('perfis')
-      .update({ plano })
+      .update(updateData)
       .eq('email', email)
       .select()
 
     if (error) throw error
-
     if (data && data.length > 0) {
-      console.log(`✅ Plano atualizado por email: ${email} → ${plano}`)
+      console.log(`✅ Perfil atualizado por email: ${email} → ${plano}`)
       return
     }
   }
 
-  console.log('⚠️ Nenhum perfil encontrado para atualizar:', {
+  console.log('⚠️ Nenhum perfil encontrado:', {
     utilizadorId,
     email,
     plano,
@@ -98,15 +112,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const utilizadorId = session.metadata?.utilizadorId || null
       const plano = session.metadata?.plano || 'pro'
       const email = session.customer_email || session.customer_details?.email || null
+      const customerId =
+        typeof session.customer === 'string' ? session.customer : session.customer?.id || null
+      const subscriptionId =
+        typeof session.subscription === 'string'
+          ? session.subscription
+          : session.subscription?.id || null
 
-      console.log('✅ checkout.session.completed:', {
+      let renovaEm: string | null = null
+      let estado = 'ativo'
+
+      if (subscriptionId) {
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+        estado = subscription.status || 'active'
+        if (subscription.current_period_end) {
+          renovaEm = new Date(subscription.current_period_end * 1000).toISOString()
+        }
+      }
+
+      await atualizarPerfil({
         utilizadorId,
-        plano,
         email,
-        metadata: session.metadata,
+        plano,
+        customerId,
+        subscriptionId,
+        estado,
+        renovaEm,
       })
-
-      await atualizarPlano({ utilizadorId, email, plano })
     }
 
     if (evento.type === 'customer.subscription.updated') {
@@ -114,26 +146,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const utilizadorId = subscription.metadata?.utilizadorId || null
       const plano = subscription.metadata?.plano || 'pro'
+      const customerId =
+        typeof subscription.customer === 'string'
+          ? subscription.customer
+          : subscription.customer.id
 
-      console.log('✅ customer.subscription.updated:', {
+      const renovaEm = subscription.current_period_end
+        ? new Date(subscription.current_period_end * 1000).toISOString()
+        : null
+
+      await atualizarPerfil({
         utilizadorId,
         plano,
-        metadata: subscription.metadata,
+        customerId,
+        subscriptionId: subscription.id,
+        estado: subscription.status,
+        renovaEm,
       })
-
-      await atualizarPlano({ utilizadorId, plano })
     }
 
     if (evento.type === 'customer.subscription.deleted') {
       const subscription = evento.data.object as Stripe.Subscription
+
       const utilizadorId = subscription.metadata?.utilizadorId || null
+      const customerId =
+        typeof subscription.customer === 'string'
+          ? subscription.customer
+          : subscription.customer.id
 
-      console.log('⚠️ customer.subscription.deleted:', {
+      await atualizarPerfil({
         utilizadorId,
-        metadata: subscription.metadata,
+        plano: 'gratuito',
+        customerId,
+        subscriptionId: subscription.id,
+        estado: 'cancelado',
+        renovaEm: null,
       })
+    }
 
-      await atualizarPlano({ utilizadorId, plano: 'gratuito' })
+    if (evento.type === 'invoice.payment_failed') {
+      const invoice = evento.data.object as Stripe.Invoice
+      console.log('❌ Pagamento falhado:', invoice.customer)
     }
 
     return res.status(200).json({ recebido: true })
