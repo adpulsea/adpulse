@@ -2,26 +2,26 @@ import Head from 'next/head'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function NovaPassword() {
-  const [password, setPassword] = useState('')
+export default function RecuperarPassword() {
+  const [email, setEmail] = useState('')
   const [mensagem, setMensagem] = useState('')
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
 
-  const atualizarPassword = async (e: React.FormEvent) => {
+  const recuperar = async (e: React.FormEvent) => {
     e.preventDefault()
     setMensagem('')
     setErro('')
     setCarregando(true)
 
-    const { error } = await supabase.auth.updateUser({
-      password: password,
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/nova-password`,
     })
 
     if (error) {
-      setErro('Erro ao atualizar password.')
+      setErro('Erro ao enviar email.')
     } else {
-      setMensagem('Password atualizada com sucesso!')
+      setMensagem('Email enviado! Verifica a tua caixa de entrada.')
     }
 
     setCarregando(false)
@@ -30,7 +30,7 @@ export default function NovaPassword() {
   return (
     <>
       <Head>
-        <title>Nova Password — AdPulse</title>
+        <title>Recuperar Password — AdPulse</title>
       </Head>
 
       <main
@@ -45,7 +45,7 @@ export default function NovaPassword() {
         }}
       >
         <form
-          onSubmit={atualizarPassword}
+          onSubmit={recuperar}
           style={{
             width: '100%',
             maxWidth: 420,
@@ -59,14 +59,14 @@ export default function NovaPassword() {
           }}
         >
           <h1 style={{ fontSize: 28, fontWeight: 800 }}>
-            Nova password
+            Recuperar password
           </h1>
 
           <input
-            type="password"
-            placeholder="Nova password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            type="email"
+            placeholder="O teu email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
             style={{
               padding: 14,
@@ -90,7 +90,7 @@ export default function NovaPassword() {
               cursor: 'pointer',
             }}
           >
-            {carregando ? 'A atualizar...' : 'Atualizar password'}
+            {carregando ? 'A enviar...' : 'Enviar email'}
           </button>
 
           {mensagem && <p style={{ color: '#34d399' }}>{mensagem}</p>}
