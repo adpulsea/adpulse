@@ -69,6 +69,9 @@ export default function LayoutPainel({ children, titulo }: Props) {
   const router = useRouter()
   const [sidebarAberta, setSidebarAberta] = useState(false)
   const [plano, setPlano] = useState('gratuito')
+  const [planoEstado, setPlanoEstado] = useState('ativo')
+  const [planoRenovaEm, setPlanoRenovaEm] = useState<string | null>(null)
+  const [aProcessarPlano, setAProcessarPlano] = useState(false)
 
   useEffect(() => {
     if (!utilizador) return
@@ -76,15 +79,71 @@ export default function LayoutPainel({ children, titulo }: Props) {
     const carregarPlano = async () => {
       const { data } = await supabase
         .from('perfis')
-        .select('plano')
+        .select('plano, plano_estado, plano_renova_em')
         .eq('id', utilizador.id)
         .single()
 
       if (data?.plano) setPlano(data.plano)
+      if (data?.plano_estado) setPlanoEstado(data.plano_estado)
+      if (data?.plano_renova_em) setPlanoRenovaEm(data.plano_renova_em)
     }
 
     carregarPlano()
   }, [utilizador])
+
+  const iniciarCheckout = async (planoEscolhido: 'pro' | 'agencia') => {
+    if (!utilizador?.email || !utilizador?.id) return
+
+    setAProcessarPlano(true)
+
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plano: planoEscolhido,
+          email: utilizador.email,
+          utilizadorId: utilizador.id,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (data.url) {
+        window.location.href = data.url
+      }
+    } catch (error) {
+      console.error('Erro ao abrir checkout:', error)
+    } finally {
+      setAProcessarPlano(false)
+    }
+  }
+
+  const abrirPortalStripe = async () => {
+    if (!utilizador?.id) return
+
+    setAProcessarPlano(true)
+
+    try {
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          utilizadorId: utilizador.id,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (data.url) {
+        window.location.href = data.url
+      }
+    } catch (error) {
+      console.error('Erro ao abrir portal Stripe:', error)
+    } finally {
+      setAProcessarPlano(false)
+    }
+  }
 
   const aoFazerLogout = async () => {
     await fazerLogout()
@@ -97,6 +156,17 @@ export default function LayoutPainel({ children, titulo }: Props) {
     'Utilizador'
 
   const iniciais = nomeUtilizador.slice(0, 2).toUpperCase()
+
+  const textoPlano =
+    plano === 'gratuito'
+      ? '3 gerações/dia'
+      : plano === 'pro'
+        ? 'Gerações ilimitadas'
+        : 'Multi-cliente'
+
+  const textoRenovacao = planoRenovaEm
+    ? new Date(planoRenovaEm).toLocaleDateString('pt-PT')
+    : null
 
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--cor-fundo)' }}>
@@ -167,12 +237,8 @@ export default function LayoutPainel({ children, titulo }: Props) {
                   onClick={() => setSidebarAberta(false)}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
                   style={{
-                    background: ativo
-                      ? 'rgba(124, 123, 250, 0.15)'
-                      : 'transparent',
-                    color: ativo
-                      ? 'var(--cor-marca)'
-                      : 'var(--cor-texto-muted)',
+                    background: ativo ? 'rgba(124, 123, 250, 0.15)' : 'transparent',
+                    color: ativo ? 'var(--cor-marca)' : 'var(--cor-texto-muted)',
                     border: ativo
                       ? '1px solid rgba(124, 123, 250, 0.25)'
                       : '1px solid transparent',
@@ -215,69 +281,97 @@ export default function LayoutPainel({ children, titulo }: Props) {
               border: `1px solid ${COR_PLANO[plano] || COR_PLANO.gratuito}25`,
             }}
           >
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p
-                  className="text-xs font-medium capitalize"
-                  style={{ color: COR_PLANO[plano] || COR_PLANO.gratuito }}
-                >
-                  Plano {plano.charAt(0).toUpperCase() + plano.slice(1)}
-                </p>
+            <div className="mb-3">
+              <p
+                className="text-xs font-medium capitalize"
+                style={{ color: COR_PLANO[plano] || COR_PLANO.gratuito }}
+              >
+                Plano {plano.charAt(0).toUpperCase() + plano.slice(1)}
+              </p>
 
-                <p
-                  className="text-xs"
-                  style={{ color: 'var(--cor-texto-fraco)' }}
-                >
-                  {plano === 'gratuito'
-                    ? '3 gerações/dia'
-                    : plano === 'pro'
-                      ? 'Gerações ilimitadas'
-                      : 'Multi-cliente'}
+              <p className="text-xs" style={{ color: 'var(--cor-texto-fraco)' }}>
+                {textoPlano}
+              </p>
+
+              {plano !== 'gratuito' && (
+                <p className="text-xs mt-1" style={{ color: 'var(--cor-texto-fraco)' }}>
+                  Estado: {planoEstado || 'ativo'}
                 </p>
-              </div>
+              )}
+
+              {plano !== 'gratuito' && textoRenovacao && (
+                <p className="text-xs mt-1" style={{ color: 'var(--cor-texto-fraco)' }}>
+                  Renova em: {textoRenovacao}
+                </p>
+              )}
             </div>
 
             {plano === 'gratuito' && (
-              <Link
-                href="/precos"
-                className="block text-center text-xs font-semibold px-3 py-2 rounded-lg"
+              <button
+                onClick={() => iniciarCheckout('pro')}
+                disabled={aProcessarPlano}
+                className="w-full text-center text-xs font-semibold px-3 py-2 rounded-lg"
                 style={{
                   background: 'var(--cor-marca)',
                   color: '#fff',
-                  textDecoration: 'none',
+                  border: 'none',
+                  cursor: aProcessarPlano ? 'not-allowed' : 'pointer',
+                  opacity: aProcessarPlano ? 0.7 : 1,
                 }}
               >
-                Fazer upgrade para Pro
-              </Link>
+                {aProcessarPlano ? 'A abrir...' : 'Fazer upgrade para Pro'}
+              </button>
             )}
 
             {plano === 'pro' && (
-              <Link
-                href="/precos"
-                className="block text-center text-xs font-semibold px-3 py-2 rounded-lg"
-                style={{
-                  background: '#c084fc',
-                  color: '#fff',
-                  textDecoration: 'none',
-                }}
-              >
-                Upgrade para Agência
-              </Link>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => iniciarCheckout('agencia')}
+                  disabled={aProcessarPlano}
+                  className="w-full text-center text-xs font-semibold px-3 py-2 rounded-lg"
+                  style={{
+                    background: '#c084fc',
+                    color: '#fff',
+                    border: 'none',
+                    cursor: aProcessarPlano ? 'not-allowed' : 'pointer',
+                    opacity: aProcessarPlano ? 0.7 : 1,
+                  }}
+                >
+                  {aProcessarPlano ? 'A abrir...' : 'Upgrade para Agência'}
+                </button>
+
+                <button
+                  onClick={abrirPortalStripe}
+                  disabled={aProcessarPlano}
+                  className="w-full text-center text-xs font-semibold px-3 py-2 rounded-lg"
+                  style={{
+                    background: 'transparent',
+                    color: '#fbbf24',
+                    border: '1px solid rgba(251,191,36,0.3)',
+                    cursor: aProcessarPlano ? 'not-allowed' : 'pointer',
+                    opacity: aProcessarPlano ? 0.7 : 1,
+                  }}
+                >
+                  Gerir plano
+                </button>
+              </div>
             )}
 
             {plano === 'agencia' && (
-              <Link
-                href="/precos"
-                className="block text-center text-xs font-semibold px-3 py-2 rounded-lg"
+              <button
+                onClick={abrirPortalStripe}
+                disabled={aProcessarPlano}
+                className="w-full text-center text-xs font-semibold px-3 py-2 rounded-lg"
                 style={{
                   background: 'rgba(192,132,252,0.15)',
                   color: '#c084fc',
                   border: '1px solid rgba(192,132,252,0.3)',
-                  textDecoration: 'none',
+                  cursor: aProcessarPlano ? 'not-allowed' : 'pointer',
+                  opacity: aProcessarPlano ? 0.7 : 1,
                 }}
               >
-                Gerir plano
-              </Link>
+                {aProcessarPlano ? 'A abrir...' : 'Gerir plano'}
+              </button>
             )}
           </div>
 
