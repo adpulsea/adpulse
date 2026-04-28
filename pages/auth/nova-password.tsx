@@ -5,18 +5,23 @@ import { useRouter } from 'next/router'
 
 export default function NovaPassword() {
   const router = useRouter()
+
   const [password, setPassword] = useState('')
   const [mensagem, setMensagem] = useState('')
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
 
-  // 🔥 ESSENCIAL: garantir sessão quando chega pelo email
+  // 🔥 importante: verificar sessão ao entrar pela magic link
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession()
+
       if (!data.session) {
         setErro('Link inválido ou expirado.')
       }
-    })
+    }
+
+    checkSession()
   }, [])
 
   const atualizarPassword = async (e: React.FormEvent) => {
