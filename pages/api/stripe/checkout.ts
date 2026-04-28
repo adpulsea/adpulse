@@ -1,61 +1,50 @@
-import type { NextApiRequest, NextApiResponse } from 'next'
-import Stripe from 'stripe'
+import type { NextApiRequest, NextApiResponse } from "next"
+import Stripe from "stripe"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string)
 
-const PRICE_IDS: Record<string, string | undefined> = {
-  pro: process.env.STRIPE_PRICE_PRO,
-  agencia: process.env.STRIPE_PRICE_AGENCIA,
-}
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método não permitido' })
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== "POST") {
+    return res.status(405).end()
   }
 
   try {
     const { plano, email, utilizadorId } = req.body
 
-    if (!plano || !email || !utilizadorId) {
-      return res.status(400).json({ error: 'Dados em falta.' })
-    }
-
-    const priceId = PRICE_IDS[plano]
-
-    if (!priceId) {
-      return res.status(400).json({ error: 'Plano inválido ou price ID em falta.' })
-    }
-
-    const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || 'https://adpulse-pf3b.vercel.app'
-
     const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      customer_email: email,
+      mode: "subscription",
+      payment_method_types: ["card"],
+
       line_items: [
         {
-          price: priceId,
+          price:
+            plano === "pro"
+              ? process.env.STRIPE_PRICE_PRO
+              : process.env.STRIPE_PRICE_AGENCIA,
           quantity: 1,
         },
       ],
+
+      customer_email: email,
+
       metadata: {
         utilizadorId,
         plano,
       },
-      subscription_data: {
-        metadata: {
-          utilizadorId,
-          plano,
-        },
-      },
-      success_url: `${siteUrl}/precos?sucesso=true`,
-      cancel_url: `${siteUrl}/precos?cancelado=true`,
+
+      success_url:
+        "https://adpulse-pf3b.vercel.app/precos?sucesso=true",
+
+      cancel_url:
+        "https://adpulse-pf3b.vercel.app/precos?cancelado=true",
     })
 
     return res.status(200).json({ url: session.url })
   } catch (error) {
-    console.error('Erro checkout Stripe:', error)
-    return res.status(500).json({ error: 'Erro ao criar checkout.' })
+    console.error(error)
+    return res.status(500).json({ error: "Erro ao criar checkout" })
   }
 }
