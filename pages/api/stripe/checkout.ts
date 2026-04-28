@@ -26,41 +26,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (!priceId) {
       return res.status(400).json({
-        error: 'Price ID inválido.',
+        error: 'Price ID inválido ou não configurado no Vercel.',
       })
     }
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://adpulse-pf3b.vercel.app'
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       customer_email: email,
-
       line_items: [
         {
           price: priceId,
           quantity: 1,
         },
       ],
-
       metadata: {
         utilizadorId,
         plano,
       },
-
       subscription_data: {
         metadata: {
           utilizadorId,
           plano,
         },
       },
-
-      success_url: 'https://adpulse-pf3b.vercel.app/precos?sucesso=true',
-      cancel_url: 'https://adpulse-pf3b.vercel.app/precos?cancelado=true',
+      success_url: `${siteUrl}/painel?sucesso_plano=true`,
+      cancel_url: `${siteUrl}/painel?cancelado_plano=true`,
     })
 
     return res.status(200).json({ url: session.url })
   } catch (error) {
-    console.error('Erro checkout:', error)
+    console.error('Erro checkout Stripe:', error)
     return res.status(500).json({ error: 'Erro ao criar checkout.' })
   }
 }
