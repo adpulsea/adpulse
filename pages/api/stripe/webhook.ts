@@ -57,10 +57,7 @@ async function atualizarPerfil({
       .select()
 
     if (error) throw error
-    if (data && data.length > 0) {
-      console.log(`✅ Perfil atualizado por ID: ${utilizadorId} → ${plano}`)
-      return
-    }
+    if (data && data.length > 0) return
   }
 
   if (email) {
@@ -71,17 +68,16 @@ async function atualizarPerfil({
       .select()
 
     if (error) throw error
-    if (data && data.length > 0) {
-      console.log(`✅ Perfil atualizado por email: ${email} → ${plano}`)
-      return
-    }
+    if (data && data.length > 0) return
   }
+}
 
-  console.log('⚠️ Nenhum perfil encontrado:', {
-    utilizadorId,
-    email,
-    plano,
-  })
+function obterRenovacao(subscription: any): string | null {
+  const fim = subscription?.current_period_end
+
+  if (!fim) return null
+
+  return new Date(fim * 1000).toISOString()
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -112,22 +108,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const utilizadorId = session.metadata?.utilizadorId || null
       const plano = session.metadata?.plano || 'pro'
       const email = session.customer_email || session.customer_details?.email || null
+
       const customerId =
-        typeof session.customer === 'string' ? session.customer : session.customer?.id || null
+        typeof session.customer === 'string'
+          ? session.customer
+          : session.customer?.id || null
+
       const subscriptionId =
         typeof session.subscription === 'string'
           ? session.subscription
           : session.subscription?.id || null
 
-      let renovaEm: string | null = null
       let estado = 'ativo'
+      let renovaEm: string | null = null
 
       if (subscriptionId) {
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId)
-        estado = subscription.status || 'active'
-        if (subscription.current_period_end) {
-          renovaEm = new Date(subscription.current_period_end * 1000).toISOString()
-        }
+        const subscription: any = await stripe.subscriptions.retrieve(subscriptionId)
+        estado = subscription?.status || 'active'
+        renovaEm = obterRenovacao(subscription)
       }
 
       await atualizarPerfil({
@@ -142,18 +140,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (evento.type === 'customer.subscription.updated') {
-      const subscription = evento.data.object as Stripe.Subscription
+      const subscription: any = evento.data.object as Stripe.Subscription
 
       const utilizadorId = subscription.metadata?.utilizadorId || null
       const plano = subscription.metadata?.plano || 'pro'
+
       const customerId =
         typeof subscription.customer === 'string'
           ? subscription.customer
-          : subscription.customer.id
-
-      const renovaEm = subscription.current_period_end
-        ? new Date(subscription.current_period_end * 1000).toISOString()
-        : null
+          : subscription.customer?.id || null
 
       await atualizarPerfil({
         utilizadorId,
@@ -161,18 +156,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         customerId,
         subscriptionId: subscription.id,
         estado: subscription.status,
-        renovaEm,
+        renovaEm: obterRenovacao(subscription),
       })
     }
 
     if (evento.type === 'customer.subscription.deleted') {
-      const subscription = evento.data.object as Stripe.Subscription
+      const subscription: any = evento.data.object as Stripe.Subscription
 
       const utilizadorId = subscription.metadata?.utilizadorId || null
+
       const customerId =
         typeof subscription.customer === 'string'
           ? subscription.customer
-          : subscription.customer.id
+          : subscription.customer?.id || null
 
       await atualizarPerfil({
         utilizadorId,
@@ -186,7 +182,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (evento.type === 'invoice.payment_failed') {
       const invoice = evento.data.object as Stripe.Invoice
-      console.log('❌ Pagamento falhado:', invoice.customer)
+      console.log('Pagamento falhado:', invoice.customer)
     }
 
     return res.status(200).json({ recebido: true })
