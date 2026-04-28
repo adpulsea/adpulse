@@ -151,27 +151,62 @@ export default function LayoutPainel({ children, titulo }: Props) {
             )}
           </div>
 
-          <div className="flex items-center gap-3">
-            <Link href="/painel/perfil"
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 transition-opacity hover:opacity-80"
-              style={{ background: 'rgba(124, 123, 250, 0.2)', color: 'var(--cor-marca)' }}>
-              {iniciais}
-            </Link>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{nomeUtilizador}</p>
-              <p className="text-xs truncate" style={{ color: 'var(--cor-texto-fraco)' }}>{utilizador?.email}</p>
-            </div>
-            <button onClick={aoFazerLogout} className="p-1.5 rounded-lg transition-colors flex-shrink-0"
-              style={{ color: 'var(--cor-texto-fraco)' }}
-              onMouseOver={e => { e.currentTarget.style.color = 'var(--cor-erro)'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)' }}
-              onMouseOut={e => { e.currentTarget.style.color = 'var(--cor-texto-fraco)'; e.currentTarget.style.background = 'transparent' }}
-              title="Sair">
-              <LogOut size={16} />
-            </button>
-          </div>
-        </div>
-      </aside>
+         <div
+  className="mb-4 px-3 py-3 rounded-xl"
+  style={{
+    background: `${COR_PLANO[plano]}12`,
+    border: `1px solid ${COR_PLANO[plano]}25`,
+  }}
+>
+  <div className="flex items-center justify-between mb-3">
+    <div>
+      <p className="text-xs font-medium capitalize" style={{ color: COR_PLANO[plano] }}>
+        Plano {plano.charAt(0).toUpperCase() + plano.slice(1)}
+      </p>
+      <p className="text-xs" style={{ color: 'var(--cor-texto-fraco)' }}>
+        {plano === 'gratuito'
+          ? '3 gerações/dia'
+          : plano === 'pro'
+            ? 'Gerações ilimitadas'
+            : 'Multi-cliente'}
+      </p>
+    </div>
+  </div>
 
+  {plano === 'gratuito' && (
+    <Link
+      href="/precos"
+      className="block text-center text-xs font-semibold px-3 py-2 rounded-lg"
+      style={{ background: 'var(--cor-marca)', color: '#fff' }}
+    >
+      Fazer upgrade para Pro
+    </Link>
+  )}
+
+  {plano === 'pro' && (
+    <Link
+      href="/precos"
+      className="block text-center text-xs font-semibold px-3 py-2 rounded-lg"
+      style={{ background: '#c084fc', color: '#fff' }}
+    >
+      Upgrade para Agência
+    </Link>
+  )}
+
+  {plano === 'agencia' && (
+    <Link
+      href="/precos"
+      className="block text-center text-xs font-semibold px-3 py-2 rounded-lg"
+      style={{
+        background: 'rgba(192,132,252,0.15)',
+        color: '#c084fc',
+        border: '1px solid rgba(192,132,252,0.3)',
+      }}
+    >
+      Gerir plano
+    </Link>
+  )}
+</div>
       <div className="flex-1 flex flex-col min-w-0 md:ml-64">
         <header className="sticky top-0 z-20 flex items-center justify-between px-6 py-4"
           style={{ background: 'rgba(10, 10, 15, 0.85)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--cor-borda)' }}>
