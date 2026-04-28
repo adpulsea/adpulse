@@ -2,12 +2,20 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ mensagem: 'Método não permitido' })
+    return res.status(200).json({
+      hook: 'Método errado',
+      legenda: 'Esta API só aceita POST.',
+      hashtags: [],
+      slides: [{ tipo: 'Erro', conteudo: 'Método errado' }],
+    })
   }
 
   if (!process.env.OPENAI_API_KEY) {
-    return res.status(500).json({
-      mensagem: 'OPENAI_API_KEY não existe no Vercel.',
+    return res.status(200).json({
+      hook: 'Erro OpenAI',
+      legenda: 'OPENAI_API_KEY não existe no Vercel.',
+      hashtags: [],
+      slides: [{ tipo: 'Erro', conteudo: 'OPENAI_API_KEY não existe no Vercel.' }],
     })
   }
 
@@ -20,12 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'user',
-            content: 'Responde apenas: teste ok',
-          },
-        ],
+        messages: [{ role: 'user', content: 'Responde apenas: teste ok' }],
         max_tokens: 20,
       }),
     })
@@ -33,21 +36,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const texto = await resposta.text()
 
     if (!resposta.ok) {
-      return res.status(500).json({
-        mensagem: 'A OpenAI recusou o pedido.',
-        status: resposta.status,
-        detalhe: texto,
+      return res.status(200).json({
+        hook: `Erro OpenAI status ${resposta.status}`,
+        legenda: texto,
+        hashtags: [],
+        slides: [{ tipo: 'Erro OpenAI', conteudo: texto }],
       })
     }
 
     return res.status(200).json({
-      mensagem: 'OpenAI ligada com sucesso.',
-      detalhe: texto,
+      hook: 'OpenAI ligada com sucesso',
+      legenda: texto,
+      hashtags: ['#teste'],
+      slides: [{ tipo: 'Sucesso', conteudo: texto }],
     })
   } catch (error) {
-    return res.status(500).json({
-      mensagem: 'Erro interno ao ligar à OpenAI.',
-      detalhe: error instanceof Error ? error.message : String(error),
+    return res.status(200).json({
+      hook: 'Erro interno',
+      legenda: error instanceof Error ? error.message : String(error),
+      hashtags: [],
+      slides: [{ tipo: 'Erro interno', conteudo: error instanceof Error ? error.message : String(error) }],
     })
   }
 }
