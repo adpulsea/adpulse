@@ -7,19 +7,19 @@ const supabaseAdmin = createClient(
 )
 
 const AGENTES = [
-  { id: 'sofia', agente: 'Sofia Martins', cargo: 'Estratégia de Conteúdo' },
-  { id: 'joao', agente: 'João Silva', cargo: 'Copywriter & Hooks' },
-  { id: 'ana', agente: 'Ana Costa', cargo: 'Designer Visual' },
-  { id: 'miguel', agente: 'Miguel Santos', cargo: 'Revisor de Conteúdo' },
-  { id: 'rui', agente: 'Rui Ferreira', cargo: 'Research & Tendências' },
-  { id: 'carla', agente: 'Carla Nunes', cargo: 'Publicação & Agendamento' },
-  { id: 'tiago', agente: 'Tiago Rocha', cargo: 'SEO & Hashtags' },
-  { id: 'beatriz', agente: 'Beatriz Lima', cargo: 'Community Manager' },
-  { id: 'ines', agente: 'Inês Rodrigues', cargo: 'Video Content Specialist' },
-  { id: 'pedro', agente: 'Pedro Alves', cargo: 'Analytics & Performance' },
-  { id: 'mariana', agente: 'Mariana Sousa', cargo: 'Brand Voice' },
-  { id: 'antonio', agente: 'António Mendes', cargo: 'Growth Hacker' },
-  { id: 'explorador', agente: 'Explorador', cargo: 'Chief Intelligence Officer' },
+  { id: 'sofia', agente: 'Sofia Martins', cargo: 'Estratégia de Conteúdo', tipo: 'Plano de conteúdo' },
+  { id: 'joao', agente: 'João Silva', cargo: 'Copywriter & Hooks', tipo: 'Copywriting' },
+  { id: 'ana', agente: 'Ana Costa', cargo: 'Designer Visual', tipo: 'Briefing visual' },
+  { id: 'miguel', agente: 'Miguel Santos', cargo: 'Revisor de Conteúdo', tipo: 'Revisão' },
+  { id: 'rui', agente: 'Rui Ferreira', cargo: 'Research & Tendências', tipo: 'Tendências' },
+  { id: 'carla', agente: 'Carla Nunes', cargo: 'Publicação & Agendamento', tipo: 'Calendário' },
+  { id: 'tiago', agente: 'Tiago Rocha', cargo: 'SEO & Hashtags', tipo: 'Hashtags' },
+  { id: 'beatriz', agente: 'Beatriz Lima', cargo: 'Community Manager', tipo: 'Engagement' },
+  { id: 'ines', agente: 'Inês Rodrigues', cargo: 'Video Content Specialist', tipo: 'Guião de vídeo' },
+  { id: 'pedro', agente: 'Pedro Alves', cargo: 'Analytics & Performance', tipo: 'Performance' },
+  { id: 'mariana', agente: 'Mariana Sousa', cargo: 'Brand Voice', tipo: 'Brand Voice' },
+  { id: 'antonio', agente: 'António Mendes', cargo: 'Growth Hacker', tipo: 'Growth' },
+  { id: 'explorador', agente: 'Explorador', cargo: 'Chief Intelligence Officer', tipo: 'Intelligence' },
 ]
 
 function limparJson(texto: string) {
@@ -28,13 +28,36 @@ function limparJson(texto: string) {
 
 async function obterUtilizador(req: NextApiRequest) {
   const token = req.headers.authorization?.replace('Bearer ', '')
+
   if (!token) return null
 
   const {
     data: { user },
+    error,
   } = await supabaseAdmin.auth.getUser(token)
 
-  return user || null
+  if (error || !user) return null
+
+  return user
+}
+
+function gerarFallback(nicho: string, plataforma: string, objetivo: string) {
+  return AGENTES.map((a) => ({
+    agente_id: a.id,
+    agente: a.agente,
+    cargo: a.cargo,
+    tipo: a.tipo,
+    titulo: `${a.tipo} — conteúdo do dia`,
+    conteudo: `${a.agente} preparou uma tarefa para ${plataforma} sobre "${nicho}" com o objetivo de ${objetivo}.
+
+Este conteúdo deve ser revisto e aprovado antes de publicação.
+
+Sugestão:
+- Criar ângulo forte
+- Adaptar ao público-alvo
+- Usar CTA claro
+- Publicar no melhor horário`,
+  }))
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -43,21 +66,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      return res.status(500).json({ erro: 'NEXT_PUBLIC_SUPABASE_URL não configurada.' })
+    }
+
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(500).json({ erro: 'SUPABASE_SERVICE_ROLE_KEY não configurada.' })
+    }
+
     const utilizador = await obterUtilizador(req)
 
     if (!utilizador?.id) {
-      return res.status(401).json({ erro: 'Sessão inválida.' })
+      return res.status(401).json({ erro: 'Sessão inválida. Faz login novamente.' })
     }
 
-    const { data: perfil } = await supabaseAdmin
+    const { data: perfil, error: perfilError } = await supabaseAdmin
       .from('perfis')
       .select('plano')
       .eq('id', utilizador.id)
       .single()
 
+    if (perfilError) {
+      return res.status(500).json({
+        erro: 'Erro ao procurar perfil.',
+        detalhe: perfilError.message,
+      })
+    }
+
     if (!perfil || perfil.plano !== 'agencia') {
       return res.status(403).json({
         erro: 'A Equipa AdPulse está disponível apenas no plano Agência.',
+        planoAtual: perfil?.plano || 'desconhecido',
         upgrade: true,
       })
     }
@@ -66,18 +105,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       nicho = 'marketing digital e criação de conteúdo',
       plataforma = 'instagram',
       objetivo = 'criar conteúdo do dia',
-    } = req.body
+    } = req.body || {}
 
-    const prompt = `
+    let tarefasGeradas: any[] = []
+
+    if (process.env.OPENAI_API_KEY) {
+      const prompt = `
 És a Equipa AdPulse, composta por 13 agentes IA especialistas em criação de conteúdo.
 
 Cria um pacote completo de conteúdo para:
-
 Nicho: ${nicho}
 Plataforma: ${plataforma}
 Objetivo: ${objetivo}
 
-Cada agente deve criar uma tarefa prática, profissional e pronta para aprovação.
+Cria exatamente 13 objetos, um por agente.
 
 Agentes obrigatórios:
 1. Sofia Martins — Estratégia de Conteúdo
@@ -94,7 +135,7 @@ Agentes obrigatórios:
 12. António Mendes — Growth Hacker
 13. Explorador — Chief Intelligence Officer
 
-Responde APENAS com JSON válido, sem markdown, neste formato:
+Responde APENAS com JSON válido, sem markdown:
 
 [
   {
@@ -102,7 +143,7 @@ Responde APENAS com JSON válido, sem markdown, neste formato:
     "cargo": "Estratégia de Conteúdo",
     "tipo": "Plano de conteúdo",
     "titulo": "Plano de conteúdo do dia",
-    "conteudo": "conteúdo completo"
+    "conteudo": "conteúdo completo, prático e pronto a usar"
   }
 ]
 
@@ -114,57 +155,50 @@ Regras:
 - Output pronto a usar.
 `
 
-    const resposta = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        temperature: 0.85,
-        max_tokens: 3500,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
-
-    if (!resposta.ok) {
-      const detalhe = await resposta.text()
-      return res.status(500).json({ erro: 'Erro da OpenAI.', detalhe })
-    }
-
-    const dados = await resposta.json()
-    const texto = dados.choices?.[0]?.message?.content || '[]'
-
-    let tarefas: any[] = []
-
-    try {
-      tarefas = JSON.parse(limparJson(texto))
-    } catch {
-      tarefas = [
-        {
-          agente: 'Sofia Martins',
-          cargo: 'Estratégia de Conteúdo',
-          tipo: 'Plano de conteúdo',
-          titulo: 'Plano de conteúdo do dia',
-          conteudo: texto,
+      const resposta = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         },
-      ]
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          temperature: 0.8,
+          max_tokens: 3500,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      })
+
+      if (resposta.ok) {
+        const dados = await resposta.json()
+        const texto = dados.choices?.[0]?.message?.content || '[]'
+
+        try {
+          tarefasGeradas = JSON.parse(limparJson(texto))
+        } catch {
+          tarefasGeradas = []
+        }
+      }
     }
 
-    const linhas = tarefas.map((t) => {
-      const agenteEncontrado =
+    if (!Array.isArray(tarefasGeradas) || tarefasGeradas.length === 0) {
+      tarefasGeradas = gerarFallback(nicho, plataforma, objetivo)
+    }
+
+    const linhas = tarefasGeradas.map((t: any, index: number) => {
+      const agenteBase =
         AGENTES.find((a) => a.agente === t.agente) ||
-        AGENTES.find((a) => t.agente?.toLowerCase?.().includes(a.agente.toLowerCase().split(' ')[0]))
+        AGENTES[index] ||
+        AGENTES[0]
 
       return {
         utilizador_id: utilizador.id,
-        agente_id: agenteEncontrado?.id || 'sofia',
-        agente: t.agente || agenteEncontrado?.agente || 'Sofia Martins',
-        cargo: t.cargo || agenteEncontrado?.cargo || 'Estratégia de Conteúdo',
-        tipo: t.tipo || 'Conteúdo',
-        titulo: t.titulo || 'Conteúdo gerado pela Equipa AdPulse',
-        descricao: t.tipo || '',
+        agente_id: agenteBase.id,
+        agente: t.agente || agenteBase.agente,
+        cargo: t.cargo || agenteBase.cargo,
+        tipo: t.tipo || agenteBase.tipo,
+        titulo: t.titulo || `${agenteBase.tipo} — conteúdo do dia`,
+        descricao: t.tipo || agenteBase.tipo,
         conteudo: t.conteudo || '',
         resultado: t.conteudo || '',
         estado: 'aguarda_aprovacao',
@@ -177,17 +211,23 @@ Regras:
       .insert(linhas)
       .select()
 
-    if (error) throw error
+    if (error) {
+      return res.status(500).json({
+        erro: 'Erro ao gravar tarefas no Supabase.',
+        detalhe: error.message,
+        codigo: error.code,
+      })
+    }
 
     return res.status(200).json({
       sucesso: true,
+      total: data?.length || 0,
       tarefas: data,
     })
-  } catch (error) {
-    console.error('Erro agentes-gerar:', error)
-
+  } catch (error: any) {
     return res.status(500).json({
-      erro: 'Erro ao gerar conteúdo da Equipa AdPulse.',
+      erro: 'Erro inesperado ao gerar conteúdo da Equipa AdPulse.',
+      detalhe: error?.message || String(error),
     })
   }
 }
