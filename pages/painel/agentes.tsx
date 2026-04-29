@@ -1,113 +1,98 @@
 import Head from 'next/head'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
+import { supabase } from '@/lib/supabase'
 
 type Tarefa = {
   id: string
+  agente_nome: string
+  agente_cargo: string
+  fase: string
   titulo: string
-  resultado: string
-  estado: 'pendente' | 'concluido'
+  conteudo: string
+  estado: string
+  criado_em: string
 }
-
-type Agente = {
-  id: string
-  nome: string
-  prompt: string
-  tarefas: Tarefa[]
-}
-
-const AGENTES_BASE: Agente[] = [
-  {
-    id: 'copy',
-    nome: 'Copywriter',
-    prompt: 'És um copywriter especialista em redes sociais. Cria conteúdo viral.',
-    tarefas: [],
-  },
-  {
-    id: 'video',
-    nome: 'Criador de Vídeo',
-    prompt: 'És especialista em guiões para Reels e TikTok.',
-    tarefas: [],
-  },
-  {
-    id: 'estrategia',
-    nome: 'Estrategista',
-    prompt: 'És especialista em estratégia de conteúdo para redes sociais.',
-    tarefas: [],
-  },
-]
 
 export default function AgentesIA() {
-  const [agentes, setAgentes] = useState<Agente[]>(AGENTES_BASE)
+  const [tarefas, setTarefas] = useState<Tarefa[]>([])
   const [loading, setLoading] = useState(false)
 
-  const gerarConteudo = async () => {
-    setLoading(true)
+  const carregar = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
 
-    const novosAgentes = [...agentes]
+    const resp = await fetch('/api/ia/equipa-adpulse-executar', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session?.access_token}`,
+      },
+      body: JSON.stringify({
+        nicho: 'marketing digital',
+        plataforma: 'instagram',
+        objetivo: 'crescer audiência e gerar leads',
+      }),
+    })
 
-    for (let agente of novosAgentes) {
-      try {
-        const resp = await fetch('/api/ia/agente-executar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt_sistema: agente.prompt,
-            tarefa: 'Cria conteúdo para hoje para redes sociais',
-          }),
-        })
+    const data = await resp.json()
 
-        const data = await resp.json()
-
-        if (!resp.ok) throw new Error()
-
-        agente.tarefas.unshift({
-          id: Date.now().toString(),
-          titulo: 'Conteúdo do dia',
-          resultado: data.resultado,
-          estado: 'concluido',
-        })
-      } catch {
-        agente.tarefas.unshift({
-          id: Date.now().toString(),
-          titulo: 'Erro',
-          resultado: 'Erro ao gerar conteúdo',
-          estado: 'concluido',
-        })
-      }
+    if (data.tarefas) {
+      setTarefas(data.tarefas)
     }
+  }
 
-    setAgentes([...novosAgentes])
+  const gerar = async () => {
+    setLoading(true)
+    await carregar()
     setLoading(false)
+  }
+
+  const aprovar = async (id: string) => {
+    await supabase
+      .from('equipa_adpulse_tarefas')
+      .update({
+        estado: 'aprovado',
+        aprovado_em: new Date().toISOString(),
+      })
+      .eq('id', id)
+
+    setTarefas((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, estado: 'aprovado' } : t
+      )
+    )
   }
 
   return (
     <>
       <Head>
-        <title>Agentes IA — AdPulse</title>
+        <title>Equipa AdPulse</title>
       </Head>
 
-      <LayoutPainel titulo="Agentes IA">
-        <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      <LayoutPainel titulo="Equipa AdPulse — Agência IA">
+        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
           
           <button
-            onClick={gerarConteudo}
+            onClick={gerar}
             style={{
-              padding: '12px 20px',
+              padding: 14,
               background: '#7c7bfa',
               color: '#fff',
               border: 'none',
-              borderRadius: 8,
+              borderRadius: 10,
               cursor: 'pointer',
               marginBottom: 20,
+              fontWeight: 'bold',
             }}
           >
-            {loading ? 'A gerar...' : 'Gerar conteúdo do dia'}
+            {loading ? 'A gerar equipa...' : '🚀 Gerar campanha do dia'}
           </button>
 
-          {agentes.map((agente) => (
+          {tarefas.map((t) => (
             <div
-              key={agente.id}
+              key={t.id}
               style={{
                 background: '#111',
                 padding: 20,
@@ -116,28 +101,40 @@ export default function AgentesIA() {
                 border: '1px solid #333',
               }}
             >
-              <h3>{agente.nome}</h3>
+              <div style={{ marginBottom: 10 }}>
+                <strong>{t.agente_nome}</strong> — {t.agente_cargo}
+              </div>
 
-              {agente.tarefas.length === 0 && (
-                <p style={{ opacity: 0.6 }}>Sem tarefas ainda</p>
-              )}
+              <div style={{ fontSize: 12, opacity: 0.6 }}>
+                {t.fase} • {t.titulo}
+              </div>
 
-              {agente.tarefas.map((t) => (
-                <div
-                  key={t.id}
+              <p style={{ whiteSpace: 'pre-wrap', marginTop: 10 }}>
+                {t.conteudo}
+              </p>
+
+              {t.estado !== 'aprovado' && (
+                <button
+                  onClick={() => aprovar(t.id)}
                   style={{
                     marginTop: 10,
-                    padding: 10,
-                    background: '#1a1a1a',
-                    borderRadius: 8,
+                    padding: '8px 12px',
+                    background: '#22c55e',
+                    border: 'none',
+                    borderRadius: 6,
+                    color: '#fff',
+                    cursor: 'pointer',
                   }}
                 >
-                  <strong>{t.titulo}</strong>
-                  <p style={{ whiteSpace: 'pre-wrap', marginTop: 5 }}>
-                    {t.resultado}
-                  </p>
-                </div>
-              ))}
+                  Aprovar
+                </button>
+              )}
+
+              {t.estado === 'aprovado' && (
+                <span style={{ color: '#22c55e', marginTop: 10, display: 'block' }}>
+                  ✔️ Aprovado
+                </span>
+              )}
             </div>
           ))}
         </div>
