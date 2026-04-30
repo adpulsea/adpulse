@@ -1,5 +1,5 @@
 // ============================================
-// AdPulse — Calendário de Conteúdo (Supabase + Equipa AdPulse)
+// AdPulse — Calendário de Conteúdo (Supabase + Equipa AdPulse + Planeamento)
 // ============================================
 
 import Head from 'next/head'
@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import {
   ChevronLeft, ChevronRight, Plus, Sparkles,
-  Loader, X, Check, Trash2, Edit3, Send
+  Loader, X, Check, Trash2, Edit3, Send, Eye, Copy
 } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import ExportarPDF from '@/components/ExportarPDF'
@@ -33,6 +33,7 @@ type Post = {
   origem?: 'posts' | 'equipa_adpulse'
   tarefa_id?: string
   agente_nome?: string
+  agente_cargo?: string
   fase?: string
 }
 
@@ -59,6 +60,21 @@ const COR_ESTADO: Record<string, string> = {
   rascunho:  '#8888aa',
   agendado:  '#60a5fa',
   publicado: '#34d399',
+}
+
+function plataformaLabel(plataforma: string) {
+  return PLATAFORMAS.find(p => p.id === plataforma)?.label || plataforma
+}
+
+function formatarDataHora(valor?: string) {
+  if (!valor) return ''
+  return new Date(valor).toLocaleString('pt-PT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 // ---- Modal de criação/edição ----
@@ -261,6 +277,90 @@ function ModalPost({
   )
 }
 
+// ---- Modal Ver Conteúdo ----
+function ModalConteudo({
+  post,
+  onFechar,
+  onCopiar,
+}: {
+  post: Post
+  onFechar: () => void
+  onCopiar: (post: Post) => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
+      <div className="w-full max-w-3xl rounded-2xl p-6 flex flex-col gap-4"
+        style={{ background: 'var(--cor-card)', border: '1px solid var(--cor-borda)', maxHeight: '85vh', overflowY: 'auto' }}>
+
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="font-semibold text-lg" style={{ fontFamily: 'var(--fonte-display)' }}>
+              {post.origem === 'equipa_adpulse' ? '🤖 Conteúdo da Equipa AdPulse' : 'Post planeado'}
+            </h3>
+            <p className="text-xs mt-1" style={{ color: 'var(--cor-texto-muted)' }}>
+              {formatarDataHora(post.criado_em)} • {plataformaLabel(post.plataforma)} • {post.estado}
+            </p>
+          </div>
+
+          <button onClick={onFechar} style={{ color: 'var(--cor-texto-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl p-3" style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)' }}>
+            <p className="text-xs mb-1" style={{ color: 'var(--cor-texto-fraco)' }}>Título</p>
+            <p className="text-sm font-semibold">{post.titulo}</p>
+          </div>
+
+          <div className="rounded-xl p-3" style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)' }}>
+            <p className="text-xs mb-1" style={{ color: 'var(--cor-texto-fraco)' }}>Origem</p>
+            <p className="text-sm font-semibold">
+              {post.origem === 'equipa_adpulse' ? `Equipa AdPulse${post.agente_nome ? ` — ${post.agente_nome}` : ''}` : 'Post manual'}
+            </p>
+          </div>
+
+          <div className="rounded-xl p-3" style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)' }}>
+            <p className="text-xs mb-1" style={{ color: 'var(--cor-texto-fraco)' }}>Plataforma</p>
+            <p className="text-sm font-semibold">{plataformaLabel(post.plataforma)}</p>
+          </div>
+
+          <div className="rounded-xl p-3" style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)' }}>
+            <p className="text-xs mb-1" style={{ color: 'var(--cor-texto-fraco)' }}>Data / Hora</p>
+            <p className="text-sm font-semibold">{formatarDataHora(post.criado_em)}</p>
+          </div>
+        </div>
+
+        {post.fase && (
+          <div className="rounded-xl p-3" style={{ background: 'rgba(124,123,250,0.08)', border: '1px solid rgba(124,123,250,0.25)' }}>
+            <p className="text-xs mb-1" style={{ color: 'var(--cor-texto-fraco)' }}>Fase / Agente</p>
+            <p className="text-sm font-semibold">{post.fase} {post.agente_cargo ? `• ${post.agente_cargo}` : ''}</p>
+          </div>
+        )}
+
+        <div className="rounded-xl p-4" style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)' }}>
+          <p className="text-xs mb-2" style={{ color: 'var(--cor-texto-fraco)' }}>Conteúdo completo</p>
+          <p className="text-sm leading-relaxed whitespace-pre-wrap">
+            {post.legenda || 'Sem conteúdo disponível.'}
+          </p>
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => onCopiar(post)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
+            style={{ background: 'var(--cor-marca)', color: '#fff', border: 'none', cursor: 'pointer' }}
+          >
+            <Copy size={14} />
+            Copiar conteúdo
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ---- Componente principal ----
 export default function Calendario() {
   const hoje = new Date()
@@ -273,7 +373,9 @@ export default function Calendario() {
   const [posts, setPosts]     = useState<Post[]>([])
   const [carregando, setCarr] = useState(true)
   const [modal, setModal]     = useState<{ dia: number, post?: Post } | null>(null)
+  const [postAberto, setPostAberto] = useState<Post | null>(null)
   const [gerando, setGerando] = useState(false)
+  const [mensagem, setMensagem] = useState('')
 
   useEffect(() => {
     if (!utilizador) return
@@ -336,6 +438,7 @@ export default function Calendario() {
           ano: d.getFullYear(),
           origem: 'equipa_adpulse',
           agente_nome: t.agente_nome,
+          agente_cargo: t.agente_cargo,
           fase: t.fase,
         }
       })
@@ -370,6 +473,10 @@ export default function Calendario() {
     d.setDate(inicioSemana.getDate() + i)
     return d
   })
+
+  const postsPlaneadosMes = [...posts]
+    .filter(p => p.mes === mesAtual && p.ano === anoAtual)
+    .sort((a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime())
 
   const gerarSemana = async () => {
     if (!utilizador) return
@@ -437,11 +544,18 @@ export default function Calendario() {
         .eq('id', post.tarefa_id)
 
       setPosts(prev => prev.filter(p => p.id !== post.id))
+      setMensagem('Agendamento removido.')
       return
     }
 
     await supabase.from('posts').delete().eq('id', post.id)
     setPosts(prev => prev.filter(p => p.id !== post.id))
+    setMensagem('Post removido.')
+  }
+
+  const copiarPost = async (post: Post) => {
+    await navigator.clipboard.writeText(post.legenda || post.titulo || '')
+    setMensagem('Conteúdo copiado.')
   }
 
   const corPlataforma = (pl: string) => PLATAFORMAS.find(p => p.id === pl)?.cor || '#7c7bfa'
@@ -493,6 +607,13 @@ export default function Calendario() {
             <ExportarPDF mesAtual={mesAtual} anoAtual={anoAtual} />
           </div>
         </div>
+
+        {mensagem && (
+          <div className="mb-4 rounded-xl px-4 py-3 text-sm"
+            style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e' }}>
+            {mensagem}
+          </div>
+        )}
 
         <div className="grid grid-cols-4 gap-3 mb-6">
           {[
@@ -566,6 +687,10 @@ export default function Calendario() {
                           )}
 
                           <div className="opacity-0 group-hover/post:opacity-100 transition-opacity flex gap-1">
+                            <button onClick={() => setPostAberto(p)} title="Ver conteúdo" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cor-marca)', padding: 0, display: 'flex' }}>
+                              <Eye size={10} />
+                            </button>
+
                             {p.origem === 'posts' && (
                               <>
                                 <button onClick={() => router.push(`/painel/publicar?id=${p.id}`)} title="Publicar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cor-marca)', padding: 0, display: 'flex' }}>
@@ -635,6 +760,12 @@ export default function Calendario() {
                           </p>
 
                           <div className="flex items-center gap-1">
+                            <button onClick={() => setPostAberto(p)}
+                              className="flex items-center gap-1 text-xs px-1.5 py-1 rounded-lg flex-1 justify-center"
+                              style={{ background: 'rgba(124,123,250,0.15)', color: 'var(--cor-marca)', border: 'none', cursor: 'pointer' }}>
+                              <Eye size={10} /> Ver
+                            </button>
+
                             {p.origem === 'posts' && (
                               <button onClick={() => router.push(`/painel/publicar?id=${p.id}`)}
                                 className="flex items-center gap-1 text-xs px-1.5 py-1 rounded-lg flex-1 justify-center"
@@ -663,6 +794,103 @@ export default function Calendario() {
           </div>
         )}
 
+        <div className="mt-6 card">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 className="font-semibold" style={{ fontFamily: 'var(--fonte-display)' }}>
+                📋 Planeamento do mês
+              </h3>
+              <p className="text-xs mt-1" style={{ color: 'var(--cor-texto-muted)' }}>
+                Lista operacional com tudo o que está planeado, incluindo conteúdos da Equipa AdPulse.
+              </p>
+            </div>
+            <span className="text-xs px-2 py-1 rounded-lg" style={{ background: 'rgba(124,123,250,0.12)', color: 'var(--cor-marca)' }}>
+              {postsPlaneadosMes.length} itens
+            </span>
+          </div>
+
+          {postsPlaneadosMes.length === 0 ? (
+            <p className="text-sm" style={{ color: 'var(--cor-texto-muted)' }}>
+              Ainda não tens publicações planeadas para este mês.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {postsPlaneadosMes.map(p => (
+                <div
+                  key={p.id}
+                  className="flex flex-wrap items-center gap-3 rounded-xl px-3 py-3"
+                  style={{ background: 'var(--cor-elevado)', border: '1px solid var(--cor-borda)' }}
+                >
+                  <div className="min-w-[130px]">
+                    <p className="text-xs font-semibold">
+                      {new Date(p.criado_em).toLocaleDateString('pt-PT')}
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--cor-texto-fraco)' }}>
+                      {p.hora_publicacao || '--:--'}
+                    </p>
+                  </div>
+
+                  <div className="min-w-[110px]">
+                    <p className="text-xs font-semibold">{plataformaLabel(p.plataforma)}</p>
+                    <p className="text-xs" style={{ color: 'var(--cor-texto-fraco)' }}>
+                      {p.formato}
+                    </p>
+                  </div>
+
+                  <div className="flex-1 min-w-[220px]">
+                    <p className="text-sm font-medium truncate">
+                      {p.origem === 'equipa_adpulse' ? '🤖 ' : ''}{p.titulo}
+                    </p>
+                    <p className="text-xs truncate" style={{ color: 'var(--cor-texto-fraco)' }}>
+                      {p.origem === 'equipa_adpulse'
+                        ? `${p.agente_nome || 'Equipa AdPulse'}${p.fase ? ` • ${p.fase}` : ''}`
+                        : 'Post manual'}
+                    </p>
+                  </div>
+
+                  <span
+                    className="text-xs px-2 py-1 rounded-lg capitalize"
+                    style={{
+                      background: `${COR_ESTADO[p.estado]}18`,
+                      color: COR_ESTADO[p.estado],
+                      border: `1px solid ${COR_ESTADO[p.estado]}40`,
+                    }}
+                  >
+                    {p.estado}
+                  </span>
+
+                  <button
+                    onClick={() => setPostAberto(p)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+                    style={{ background: 'rgba(124,123,250,0.12)', color: 'var(--cor-marca)', border: '1px solid rgba(124,123,250,0.25)', cursor: 'pointer' }}
+                  >
+                    <Eye size={12} />
+                    Ver
+                  </button>
+
+                  <button
+                    onClick={() => copiarPost(p)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+                    style={{ background: 'var(--cor-card)', color: 'var(--cor-texto-muted)', border: '1px solid var(--cor-borda)', cursor: 'pointer' }}
+                  >
+                    <Copy size={12} />
+                    Copiar
+                  </button>
+
+                  <button
+                    onClick={() => apagarPost(p)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+                    style={{ background: 'rgba(248,113,113,0.1)', color: 'var(--cor-erro)', border: '1px solid rgba(248,113,113,0.25)', cursor: 'pointer' }}
+                  >
+                    <Trash2 size={12} />
+                    Remover
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-wrap gap-4 mt-4">
           {Object.entries(COR_TIPO).map(([tipo, cor]) => (
             <div key={tipo} className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--cor-texto-muted)' }}>
@@ -687,6 +915,14 @@ export default function Calendario() {
           utilizadorId={utilizador.id}
           onGuardar={guardarPost}
           onFechar={() => setModal(null)}
+        />
+      )}
+
+      {postAberto && (
+        <ModalConteudo
+          post={postAberto}
+          onFechar={() => setPostAberto(null)}
+          onCopiar={copiarPost}
         />
       )}
     </>
