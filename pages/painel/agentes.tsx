@@ -1,5 +1,5 @@
 import Head from 'next/head'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import { supabase } from '@/lib/supabase'
 
@@ -17,35 +17,59 @@ type Tarefa = {
 export default function AgentesIA() {
   const [tarefas, setTarefas] = useState<Tarefa[]>([])
   const [loading, setLoading] = useState(false)
+  const [erro, setErro] = useState('')
+  const [progresso, setProgresso] = useState(0)
 
   const carregar = async () => {
     const {
       data: { session },
     } = await supabase.auth.getSession()
 
-    const resp = await fetch('/api/ia/equipa-adpulse-executar', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session?.access_token}`,
-      },
-      body: JSON.stringify({
-        nicho: 'marketing digital',
-        plataforma: 'instagram',
-        objetivo: 'crescer audiência e gerar leads',
-      }),
-    })
+    if (!session?.access_token) {
+      setErro('Sessão inválida. Faz login novamente.')
+      return
+    }
 
-    const data = await resp.json()
+    try {
+      const resp = await fetch('/api/ia/equipa-adpulse-executar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          nicho: 'marketing digital',
+          plataforma: 'instagram',
+          objetivo: 'crescer audiência e gerar leads',
+        }),
+      })
 
-    if (data.tarefas) {
-      setTarefas(data.tarefas)
+      const data = await resp.json()
+
+      if (!resp.ok) {
+        setErro(data?.erro || data?.detalhe || 'Erro ao gerar conteúdo.')
+        return
+      }
+
+      if (data.tarefas) {
+        setTarefas(data.tarefas)
+        setProgresso(data.tarefas.length)
+      }
+    } catch (e: any) {
+      setErro(e?.message || 'Erro inesperado.')
     }
   }
 
   const gerar = async () => {
+    if (loading) return
+
     setLoading(true)
+    setErro('')
+    setProgresso(0)
+    setTarefas([])
+
     await carregar()
+
     setLoading(false)
   }
 
@@ -73,23 +97,52 @@ export default function AgentesIA() {
 
       <LayoutPainel titulo="Equipa AdPulse — Agência IA">
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-          
+
+          {/* BOTÃO */}
           <button
             onClick={gerar}
+            disabled={loading}
             style={{
               padding: 14,
               background: '#7c7bfa',
               color: '#fff',
               border: 'none',
               borderRadius: 10,
-              cursor: 'pointer',
+              cursor: loading ? 'not-allowed' : 'pointer',
               marginBottom: 20,
               fontWeight: 'bold',
+              opacity: loading ? 0.7 : 1,
             }}
           >
-            {loading ? 'A gerar equipa...' : '🚀 Gerar campanha do dia'}
+            {loading
+              ? `🤖 Equipa a trabalhar... (${progresso}/13)`
+              : '🚀 Gerar campanha do dia'}
           </button>
 
+          {/* ERRO */}
+          {erro && (
+            <div
+              style={{
+                marginBottom: 20,
+                padding: 12,
+                borderRadius: 8,
+                background: 'rgba(248,113,113,0.1)',
+                color: '#f87171',
+                border: '1px solid rgba(248,113,113,0.3)',
+              }}
+            >
+              {erro}
+            </div>
+          )}
+
+          {/* SEM RESULTADOS */}
+          {!loading && tarefas.length === 0 && (
+            <p style={{ opacity: 0.6 }}>
+              Ainda não geraste conteúdo hoje.
+            </p>
+          )}
+
+          {/* LISTA */}
           {tarefas.map((t) => (
             <div
               key={t.id}
@@ -131,7 +184,13 @@ export default function AgentesIA() {
               )}
 
               {t.estado === 'aprovado' && (
-                <span style={{ color: '#22c55e', marginTop: 10, display: 'block' }}>
+                <span
+                  style={{
+                    color: '#22c55e',
+                    marginTop: 10,
+                    display: 'block',
+                  }}
+                >
                   ✔️ Aprovado
                 </span>
               )}
