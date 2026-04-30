@@ -11,8 +11,16 @@ type Tarefa = {
   titulo: string
   conteudo: string
   estado: string
-  criado_em: string
 }
+
+const fases = [
+  'Inteligência',
+  'Estratégia',
+  'Criação',
+  'Qualidade',
+  'Execução',
+  'Performance',
+]
 
 export default function AgentesIA() {
   const [tarefas, setTarefas] = useState<Tarefa[]>([])
@@ -20,13 +28,21 @@ export default function AgentesIA() {
   const [erro, setErro] = useState('')
   const [progresso, setProgresso] = useState(0)
 
-  const carregar = async () => {
+  const gerar = async () => {
+    if (loading) return
+
+    setLoading(true)
+    setErro('')
+    setProgresso(0)
+    setTarefas([])
+
     const {
       data: { session },
     } = await supabase.auth.getSession()
 
     if (!session?.access_token) {
-      setErro('Sessão inválida. Faz login novamente.')
+      setErro('Sessão inválida.')
+      setLoading(false)
       return
     }
 
@@ -40,35 +56,29 @@ export default function AgentesIA() {
         body: JSON.stringify({
           nicho: 'marketing digital',
           plataforma: 'instagram',
-          objetivo: 'crescer audiência e gerar leads',
+          objetivo: 'crescer audiência',
         }),
       })
 
       const data = await resp.json()
 
       if (!resp.ok) {
-        setErro(data?.erro || data?.detalhe || 'Erro ao gerar conteúdo.')
+        setErro(data?.erro || 'Erro na geração')
+        setLoading(false)
         return
       }
 
       if (data.tarefas) {
-        setTarefas(data.tarefas)
-        setProgresso(data.tarefas.length)
+        // Simula chegada progressiva
+        for (let i = 0; i < data.tarefas.length; i++) {
+          await new Promise((r) => setTimeout(r, 120))
+          setTarefas((prev) => [...prev, data.tarefas[i]])
+          setProgresso(i + 1)
+        }
       }
     } catch (e: any) {
-      setErro(e?.message || 'Erro inesperado.')
+      setErro(e?.message || 'Erro inesperado')
     }
-  }
-
-  const gerar = async () => {
-    if (loading) return
-
-    setLoading(true)
-    setErro('')
-    setProgresso(0)
-    setTarefas([])
-
-    await carregar()
 
     setLoading(false)
   }
@@ -89,113 +99,121 @@ export default function AgentesIA() {
     )
   }
 
+  const porFase = (fase: string) =>
+    tarefas.filter((t) => t.fase === fase)
+
   return (
     <>
       <Head>
-        <title>Equipa AdPulse</title>
+        <title>Equipa AdPulse PRO</title>
       </Head>
 
-      <LayoutPainel titulo="Equipa AdPulse — Agência IA">
-        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+      <LayoutPainel titulo="Equipa AdPulse — PRO 🚀">
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
 
           {/* BOTÃO */}
           <button
             onClick={gerar}
             disabled={loading}
             style={{
-              padding: 14,
+              padding: 16,
               background: '#7c7bfa',
               color: '#fff',
               border: 'none',
-              borderRadius: 10,
-              cursor: loading ? 'not-allowed' : 'pointer',
+              borderRadius: 12,
+              cursor: 'pointer',
               marginBottom: 20,
-              fontWeight: 'bold',
+              fontWeight: 700,
               opacity: loading ? 0.7 : 1,
             }}
           >
             {loading
               ? `🤖 Equipa a trabalhar... (${progresso}/13)`
-              : '🚀 Gerar campanha do dia'}
+              : '🚀 Gerar campanha PRO'}
           </button>
 
-          {/* ERRO */}
-          {erro && (
+          {/* PROGRESS BAR */}
+          {loading && (
             <div
               style={{
+                height: 8,
+                background: '#222',
+                borderRadius: 10,
                 marginBottom: 20,
-                padding: 12,
-                borderRadius: 8,
-                background: 'rgba(248,113,113,0.1)',
-                color: '#f87171',
-                border: '1px solid rgba(248,113,113,0.3)',
+                overflow: 'hidden',
               }}
             >
-              {erro}
+              <div
+                style={{
+                  width: `${(progresso / 13) * 100}%`,
+                  height: '100%',
+                  background: '#7c7bfa',
+                  transition: 'all 0.3s',
+                }}
+              />
             </div>
           )}
 
-          {/* SEM RESULTADOS */}
-          {!loading && tarefas.length === 0 && (
-            <p style={{ opacity: 0.6 }}>
-              Ainda não geraste conteúdo hoje.
-            </p>
-          )}
+          {/* ERRO */}
+          {erro && <p style={{ color: 'red' }}>{erro}</p>}
 
-          {/* LISTA */}
-          {tarefas.map((t) => (
-            <div
-              key={t.id}
-              style={{
-                background: '#111',
-                padding: 20,
-                borderRadius: 12,
-                marginBottom: 15,
-                border: '1px solid #333',
-              }}
-            >
-              <div style={{ marginBottom: 10 }}>
-                <strong>{t.agente_nome}</strong> — {t.agente_cargo}
+          {/* FASES */}
+          {fases.map((fase) => {
+            const lista = porFase(fase)
+
+            return (
+              <div key={fase} style={{ marginBottom: 25 }}>
+                <h3 style={{ marginBottom: 10 }}>
+                  {fase} ({lista.length})
+                </h3>
+
+                {lista.length === 0 && loading && (
+                  <p style={{ opacity: 0.5 }}>
+                    A equipa está a trabalhar...
+                  </p>
+                )}
+
+                {lista.map((t) => (
+                  <div
+                    key={t.id}
+                    style={{
+                      background: '#111',
+                      padding: 15,
+                      borderRadius: 10,
+                      marginBottom: 10,
+                      border: '1px solid #333',
+                    }}
+                  >
+                    <strong>{t.agente_nome}</strong>
+
+                    <p style={{ fontSize: 12, opacity: 0.6 }}>
+                      {t.titulo}
+                    </p>
+
+                    <p style={{ whiteSpace: 'pre-wrap' }}>
+                      {t.conteudo}
+                    </p>
+
+                    {t.estado !== 'aprovado' && (
+                      <button
+                        onClick={() => aprovar(t.id)}
+                        style={{
+                          marginTop: 10,
+                          background: '#22c55e',
+                          border: 'none',
+                          padding: 6,
+                          color: '#fff',
+                          borderRadius: 6,
+                        }}
+                      >
+                        Aprovar
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
-
-              <div style={{ fontSize: 12, opacity: 0.6 }}>
-                {t.fase} • {t.titulo}
-              </div>
-
-              <p style={{ whiteSpace: 'pre-wrap', marginTop: 10 }}>
-                {t.conteudo}
-              </p>
-
-              {t.estado !== 'aprovado' && (
-                <button
-                  onClick={() => aprovar(t.id)}
-                  style={{
-                    marginTop: 10,
-                    padding: '8px 12px',
-                    background: '#22c55e',
-                    border: 'none',
-                    borderRadius: 6,
-                    color: '#fff',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Aprovar
-                </button>
-              )}
-
-              {t.estado === 'aprovado' && (
-                <span
-                  style={{
-                    color: '#22c55e',
-                    marginTop: 10,
-                    display: 'block',
-                  }}
-                >
-                  ✔️ Aprovado
-                </span>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       </LayoutPainel>
     </>
