@@ -1,12 +1,10 @@
 import Head from 'next/head'
-import { useEffect, useMemo, useState } from 'react'
-import type { CSSProperties } from 'react'
+import { useMemo, useState } from 'react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import { supabase } from '@/lib/supabase'
 
 type Tarefa = {
   id: string
-  execucao_id?: string
   agente_id: string
   agente_nome: string
   agente_cargo: string
@@ -14,13 +12,17 @@ type Tarefa = {
   titulo: string
   conteudo: string
   estado: string
-  criado_em?: string
-  data_publicacao?: string | null
-  plataforma_publicacao?: string | null
-  publicado_em?: string | null
+  formato?: string
+  plataforma?: string
+  legenda?: string
+  texto_criativo?: string
+  hashtags?: string
+  cta?: string
+  prompt_imagem?: string
+  hora_sugerida?: string
 }
 
-type Agente = {
+type AgenteUI = {
   id: string
   nome: string
   cargo: string
@@ -28,7 +30,7 @@ type Agente = {
   emoji: string
 }
 
-const AGENTES: Agente[] = [
+const AGENTES_UI: AgenteUI[] = [
   { id: 'explorador', nome: 'Explorador', cargo: 'Chief Intelligence Officer', fase: 'Inteligência', emoji: '🌐' },
   { id: 'rui', nome: 'Rui Ferreira', cargo: 'Research & Tendências', fase: 'Inteligência', emoji: '🔬' },
   { id: 'sofia', nome: 'Sofia Martins', cargo: 'Estratégia de Conteúdo', fase: 'Estratégia', emoji: '🧠' },
@@ -46,481 +48,810 @@ const AGENTES: Agente[] = [
 
 const FASES = ['Inteligência', 'Estratégia', 'Criação', 'Qualidade', 'Execução', 'Performance']
 
+const corFase = (fase: string) => {
+  switch (fase) {
+    case 'Inteligência':
+      return '#22c55e'
+    case 'Estratégia':
+      return '#8b5cf6'
+    case 'Criação':
+      return '#ec4899'
+    case 'Qualidade':
+      return '#f59e0b'
+    case 'Execução':
+      return '#06b6d4'
+    case 'Performance':
+      return '#3b82f6'
+    default:
+      return '#7c7bfa'
+  }
+}
+
+const corEstado = (estado?: string) => {
+  switch (estado) {
+    case 'concluido':
+      return '#22c55e'
+    case 'a_trabalhar':
+      return '#f59e0b'
+    default:
+      return '#94a3b8'
+  }
+}
+
+function stripMarkdown(texto: string) {
+  if (!texto) return ''
+  return texto
+    .replace(/[*_`>#-]/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function hashtagsParaArray(hashtags?: string) {
+  if (!hashtags) return []
+  return hashtags
+    .split(/\s+/)
+    .map(h => h.trim())
+    .filter(Boolean)
+    .map(h => (h.startsWith('#') ? h : `#${h}`))
+}
+
+function horaValida(hora?: string) {
+  if (!hora) return '09:00'
+  return /^\d{2}:\d{2}$/.test(hora) ? hora : '09:00'
+}
+
+function dataComHora(hora: string) {
+  const agora = new Date()
+  const [h, m] = horaValida(hora).split(':')
+  const d = new Date(
+    agora.getFullYear(),
+    agora.getMonth(),
+    agora.getDate(),
+    parseInt(h, 10),
+    parseInt(m, 10),
+    0,
+    0
+  )
+  return d.toISOString()
+}
+
 export default function AgentesIA() {
   const [tarefas, setTarefas] = useState<Tarefa[]>([])
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
-  const [mensagem, setMensagem] = useState('')
-  const [progresso, setProgresso] = useState(0)
-  const [agenteAtivo, setAgenteAtivo] = useState<string | null>(null)
-  const [execucaoId, setExecucaoId] = useState<string | null>(null)
-  const [publicandoId, setPublicandoId] = useState<string | null>(null)
-  const [agendandoId, setAgendandoId] = useState<string | null>(null)
-  const [datasAgendamento, setDatasAgendamento] = useState<Record<string, string>>({})
+  const [nicho, setNicho] = useState('marketing digital')
+  const [plataforma, setPlataforma] = useState('instagram')
+  const [objetivo, setObjetivo] = useState('crescer audiência e gerar leads')
+  const [imagemPorTarefa, setImagemPorTarefa] = useState<Record<string, string>>({})
+  const [gerandoImagemId, setGerandoImagemId] = useState<string | null>(null)
+  const [guardandoId, setGuardandoId] = useState<string | null>(null)
+  const [copiadoId, setCopiadoId] = useState<string | null>(null)
 
-  const tarefasPorAgente = useMemo(() => {
-    const mapa: Record<string, Tarefa | undefined> = {}
-    tarefas.forEach((t) => {
-      mapa[t.agente_id] = t
-    })
-    return mapa
+  const resumo = useMemo(() => {
+    return FASES.map(fase => ({
+      fase,
+      total: tarefas.filter(t => t.fase === fase).length,
+    }))
   }, [tarefas])
 
-  useEffect(() => {
-    carregarUltimasTarefas()
-  }, [])
+  const agentesStatus = useMemo(() => {
+    return AGENTES_UI.map(agente => {
+      const tarefa = tarefas.find(t => t.agente_id === agente.id)
 
-  const carregarUltimasTarefas = async () => {
-    const { data: userData } = await supabase.auth.getUser()
-    const user = userData?.user
+      let status = 'Pronto'
+      if (loading) status = 'A trabalhar...'
+      if (tarefa?.estado === 'concluido') status = 'Concluído'
 
-    if (!user) return
+      return {
+        ...agente,
+        status,
+      }
+    })
+  }, [tarefas, loading])
 
-    const { data } = await supabase
-      .from('equipa_adpulse_tarefas')
-      .select('*')
-      .eq('utilizador_id', user.id)
-      .order('criado_em', { ascending: false })
-      .limit(13)
-
-    if (data && data.length > 0) {
-      setTarefas(data.reverse() as Tarefa[])
-      setProgresso(data.length)
-      setExecucaoId(data[0]?.execucao_id || null)
+  const copiar = async (texto: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(texto)
+      setCopiadoId(id)
+      setTimeout(() => setCopiadoId(null), 1800)
+    } catch {
+      // silencioso
     }
   }
 
-  const gerar = async () => {
+  const copiarTudo = async () => {
+    const texto = tarefas
+      .map(
+        t => `=== ${t.agente_nome} — ${t.titulo} ===
+
+${t.conteudo}
+
+Legenda:
+${t.legenda || '-'}
+
+Texto do criativo:
+${t.texto_criativo || '-'}
+
+Hashtags:
+${t.hashtags || '-'}
+
+CTA:
+${t.cta || '-'}
+
+Prompt de imagem:
+${t.prompt_imagem || '-'}`
+      )
+      .join('\n\n-------------------------------\n\n')
+
+    try {
+      await navigator.clipboard.writeText(texto)
+      alert('Conteúdo copiado.')
+    } catch {
+      alert('Não foi possível copiar.')
+    }
+  }
+
+  const abrirInstagram = () => {
+    window.open('https://www.instagram.com/', '_blank')
+  }
+
+  const gerarCampanha = async () => {
     if (loading) return
 
-    setLoading(true)
     setErro('')
-    setMensagem('')
-    setTarefas([])
-    setProgresso(0)
-    setExecucaoId(null)
+    setLoading(true)
+    setImagemPorTarefa({})
 
-    let simulador = 0
-    const intervalo = setInterval(() => {
-      simulador = Math.min(simulador + 1, AGENTES.length - 1)
-      setAgenteAtivo(AGENTES[simulador]?.id || null)
-    }, 900)
+    const placeholders: Tarefa[] = AGENTES_UI.map(ag => ({
+      id: ag.id,
+      agente_id: ag.id,
+      agente_nome: ag.nome,
+      agente_cargo: ag.cargo,
+      fase: ag.fase,
+      titulo: 'A preparar...',
+      conteudo: 'O agente está a trabalhar...',
+      estado: 'a_trabalhar',
+      formato: 'Post',
+      plataforma,
+    }))
 
-    setAgenteAtivo(AGENTES[0].id)
+    setTarefas(placeholders)
 
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession()
-
-      if (!session?.access_token) {
-        setErro('Sessão inválida. Faz logout e login novamente.')
-        clearInterval(intervalo)
-        setLoading(false)
-        return
-      }
 
       const resp = await fetch('/api/ia/equipa-adpulse-executar', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${session?.access_token || ''}`,
         },
         body: JSON.stringify({
-          nicho: 'marketing digital',
-          plataforma: 'instagram',
-          objetivo: 'crescer audiência e gerar leads',
+          nicho,
+          plataforma,
+          objetivo,
         }),
       })
 
       const data = await resp.json()
 
       if (!resp.ok) {
-        setErro(data?.erro || data?.detalhe || 'Erro ao gerar campanha.')
-        clearInterval(intervalo)
-        setLoading(false)
-        setAgenteAtivo(null)
-        return
+        throw new Error(data?.error || 'Erro ao gerar campanha.')
       }
 
-      if (data?.execucao?.id) {
-        setExecucaoId(data.execucao.id)
-      }
-
-      if (data?.tarefas) {
-        setTarefas([])
-
-        for (let i = 0; i < data.tarefas.length; i++) {
-          const tarefa = data.tarefas[i]
-          setAgenteAtivo(tarefa.agente_id)
-          await new Promise((r) => setTimeout(r, 180))
-          setTarefas((prev) => [...prev, tarefa])
-          setProgresso(i + 1)
-        }
-
-        setMensagem('✅ Campanha gerada e guardada no Supabase.')
+      if (Array.isArray(data?.tarefas)) {
+        setTarefas(data.tarefas)
       } else {
-        setErro('A API respondeu, mas não devolveu tarefas.')
+        throw new Error('A API não devolveu tarefas válidas.')
       }
     } catch (e: any) {
-      setErro(e?.message || 'Erro inesperado.')
+      setErro(e?.message || 'Ocorreu um erro ao gerar a campanha.')
+      setTarefas([])
+    } finally {
+      setLoading(false)
     }
-
-    clearInterval(intervalo)
-    setAgenteAtivo(null)
-    setLoading(false)
   }
 
-  const aprovar = async (id: string) => {
-    await supabase
-      .from('equipa_adpulse_tarefas')
-      .update({
-        estado: 'aprovado',
-        aprovado_em: new Date().toISOString(),
+  const gerarImagem = async (tarefa: Tarefa) => {
+    setGerandoImagemId(tarefa.id)
+
+    try {
+      const resp = await fetch('/api/ia/gerar-imagem-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          titulo: tarefa.titulo,
+          conteudo: tarefa.conteudo,
+          legenda: tarefa.legenda,
+          texto_criativo: tarefa.texto_criativo,
+          prompt_imagem: tarefa.prompt_imagem,
+          plataforma: tarefa.plataforma || plataforma,
+          formato: tarefa.formato || 'Post',
+        }),
       })
-      .eq('id', id)
 
-    setTarefas((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, estado: 'aprovado' } : t))
-    )
+      const data = await resp.json()
+
+      if (!resp.ok) {
+        throw new Error(data?.error || 'Erro ao gerar imagem.')
+      }
+
+      if (data?.imagem) {
+        setImagemPorTarefa(prev => ({
+          ...prev,
+          [tarefa.id]: data.imagem,
+        }))
+      } else {
+        throw new Error('A imagem não foi devolvida.')
+      }
+    } catch (e: any) {
+      alert(e?.message || 'Erro ao gerar imagem.')
+    } finally {
+      setGerandoImagemId(null)
+    }
   }
 
-  const agendarPublicacao = async (tarefa: Tarefa) => {
-    const dataSelecionada = datasAgendamento[tarefa.id]
-
-    if (!dataSelecionada) {
-      setErro('Escolhe uma data e hora para agendar.')
-      return
-    }
-
-    setAgendandoId(tarefa.id)
-    setErro('')
-    setMensagem('')
+  const guardarNoCalendario = async (tarefa: Tarefa) => {
+    setGuardandoId(tarefa.id)
 
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession()
 
-      if (!session?.access_token) {
-        setErro('Sessão inválida. Faz logout e login novamente.')
-        setAgendandoId(null)
-        return
+      const utilizadorId = session?.user?.id
+      if (!utilizadorId) {
+        throw new Error('Sessão não encontrada. Faz login novamente.')
       }
 
-      const resp = await fetch('/api/ia/agendar-publicacao', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          tarefa_id: tarefa.id,
-          data_publicacao: new Date(dataSelecionada).toISOString(),
-          plataforma: 'instagram',
-          legenda: tarefa.conteudo,
-        }),
+      const { error } = await supabase.from('posts').insert({
+        utilizador_id: utilizadorId,
+        titulo: tarefa.titulo,
+        legenda: tarefa.legenda || tarefa.conteudo,
+        hashtags: hashtagsParaArray(tarefa.hashtags),
+        hook: tarefa.texto_criativo || '',
+        plataforma: (tarefa.plataforma || plataforma).toLowerCase(),
+        formato: tarefa.formato || 'Post',
+        estado: 'agendado',
+        hora_publicacao: horaValida(tarefa.hora_sugerida),
+        imagem_url: imagemPorTarefa[tarefa.id] || null,
+        criado_em: dataComHora(tarefa.hora_sugerida || '09:00'),
       })
 
-      const data = await resp.json()
+      if (error) throw error
 
-      if (!resp.ok) {
-        setErro(data?.erro || 'Erro ao agendar publicação.')
-        setAgendandoId(null)
-        return
-      }
-
-      setTarefas((prev) =>
-        prev.map((t) =>
-          t.id === tarefa.id
-            ? {
-                ...t,
-                estado: 'agendado',
-                data_publicacao: data.tarefa?.data_publicacao || new Date(dataSelecionada).toISOString(),
-                plataforma_publicacao: 'instagram',
-              }
-            : t
-        )
-      )
-
-      setMensagem('📅 Publicação agendada com sucesso.')
+      alert('Conteúdo guardado no calendário com sucesso.')
     } catch (e: any) {
-      setErro(e?.message || 'Erro inesperado ao agendar.')
+      alert(e?.message || 'Erro ao guardar no calendário.')
+    } finally {
+      setGuardandoId(null)
     }
-
-    setAgendandoId(null)
-  }
-
-  const publicarInstagram = async (id: string) => {
-    setPublicandoId(id)
-    setErro('')
-    setMensagem('')
-
-    try {
-      const resp = await fetch('/api/ia/publicar-instagram', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tarefa_id: id }),
-      })
-
-      const data = await resp.json()
-
-      if (!resp.ok) {
-        setErro(data?.erro || 'Erro ao publicar no Instagram.')
-        setPublicandoId(null)
-        return
-      }
-
-      setTarefas((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, estado: 'publicado' } : t))
-      )
-
-      setMensagem(data?.mensagem || '🚀 Publicado no Instagram.')
-    } catch (e: any) {
-      setErro(e?.message || 'Erro inesperado ao publicar.')
-    }
-
-    setPublicandoId(null)
-  }
-
-  const guardarCampanha = async () => {
-    if (!execucaoId) {
-      setMensagem('✅ A campanha já está guardada nas tarefas.')
-      return
-    }
-
-    await supabase
-      .from('equipa_adpulse_execucoes')
-      .update({ estado: 'guardado' })
-      .eq('id', execucaoId)
-
-    setMensagem('✅ Campanha guardada no histórico.')
-  }
-
-  const copiarTudo = async () => {
-    const texto = tarefas
-      .map((t) => `## ${t.agente_nome} — ${t.titulo}\n\n${t.conteudo}`)
-      .join('\n\n---\n\n')
-
-    await navigator.clipboard.writeText(texto)
-    setMensagem('✅ Campanha copiada.')
-  }
-
-  const formatarData = (valor?: string | null) => {
-    if (!valor) return ''
-    return new Date(valor).toLocaleString('pt-PT', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
   }
 
   return (
     <>
       <Head>
-        <title>Equipa AdPulse GOD MODE</title>
+        <title>Equipa AdPulse — GOD MODE</title>
       </Head>
 
       <LayoutPainel titulo="Equipa AdPulse — GOD MODE 🚀">
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div style={heroCard}>
-            <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>
-              🤖 Agência IA AdPulse
-            </h2>
+        <div style={{ maxWidth: 1250, margin: '0 auto' }}>
+          <div
+            style={{
+              border: '1px solid rgba(124,123,250,0.25)',
+              borderRadius: 18,
+              padding: 20,
+              background: 'linear-gradient(180deg, rgba(124,123,250,0.10), rgba(124,123,250,0.03))',
+              marginBottom: 20,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 6 }}>🤖 Agência IA AdPulse</div>
+                <div style={{ opacity: 0.8, fontSize: 14 }}>
+                  13 agentes especializados a pensar, criar, rever, planear e preparar a tua campanha.
+                </div>
+              </div>
 
-            <p style={{ opacity: 0.65, marginBottom: 18 }}>
-              13 agentes especializados a pensar, criar, rever, planear e preparar a tua campanha.
-            </p>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  onClick={gerarCampanha}
+                  disabled={loading}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: '#7c7bfa',
+                    color: '#fff',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {loading ? '🤖 Equipa a trabalhar...' : '🚀 Gerar campanha GOD MODE'}
+                </button>
 
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <button
-                onClick={gerar}
-                disabled={loading}
-                style={{
-                  padding: '14px 22px',
-                  background: '#7c7bfa',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 12,
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  fontWeight: 800,
-                  opacity: loading ? 0.75 : 1,
-                }}
-              >
-                {loading ? `🤖 Equipa a pensar... (${progresso}/13)` : '🚀 Gerar campanha GOD MODE'}
-              </button>
+                <button
+                  onClick={copiarTudo}
+                  disabled={!tarefas.length}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 10,
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    background: '#151523',
+                    color: '#fff',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    opacity: tarefas.length ? 1 : 0.5,
+                  }}
+                >
+                  📋 Copiar tudo
+                </button>
 
-              {tarefas.length > 0 && (
-                <>
-                  <button onClick={guardarCampanha} style={botaoSecundario}>
-                    💾 Guardar campanha
-                  </button>
-
-                  <button onClick={copiarTudo} style={botaoSecundario}>
-                    📋 Copiar tudo
-                  </button>
-                </>
-              )}
+                <button
+                  onClick={abrirInstagram}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 10,
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    background: '#151523',
+                    color: '#fff',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  📱 Abrir Instagram
+                </button>
+              </div>
             </div>
 
-            {(loading || tarefas.length > 0) && (
-              <div style={barraFundo}>
-                <div
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: 12,
+                marginTop: 18,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Nicho</div>
+                <input
+                  value={nicho}
+                  onChange={e => setNicho(e.target.value)}
                   style={{
-                    width: `${(progresso / 13) * 100}%`,
-                    height: '100%',
-                    background: '#7c7bfa',
-                    transition: 'all 0.3s ease',
+                    width: '100%',
+                    padding: 12,
+                    borderRadius: 10,
+                    border: '1px solid rgba(255,255,255,0.10)',
+                    background: '#10101a',
+                    color: '#fff',
+                    outline: 'none',
                   }}
                 />
               </div>
-            )}
 
-            {erro && <div style={erroBox}>{erro}</div>}
-            {mensagem && <div style={mensagemBox}>{mensagem}</div>}
-          </div>
-
-          <div style={gridAgentes}>
-            {AGENTES.map((agente) => {
-              const tarefa = tarefasPorAgente[agente.id]
-              const ativo = agenteAtivo === agente.id
-              const concluido = !!tarefa
-
-              return (
-                <div
-                  key={agente.id}
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Plataforma</div>
+                <select
+                  value={plataforma}
+                  onChange={e => setPlataforma(e.target.value)}
                   style={{
-                    background: ativo
-                      ? 'rgba(124,123,250,0.18)'
-                      : concluido
-                        ? 'rgba(34,197,94,0.08)'
-                        : '#111',
-                    border: ativo
-                      ? '1px solid rgba(124,123,250,0.65)'
-                      : concluido
-                        ? '1px solid rgba(34,197,94,0.35)'
-                        : '1px solid #27272a',
-                    borderRadius: 16,
-                    padding: 16,
-                    minHeight: 118,
+                    width: '100%',
+                    padding: 12,
+                    borderRadius: 10,
+                    border: '1px solid rgba(255,255,255,0.10)',
+                    background: '#10101a',
+                    color: '#fff',
+                    outline: 'none',
                   }}
                 >
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>{agente.emoji}</div>
-                  <strong>{agente.nome}</strong>
-                  <div style={{ fontSize: 12, color: '#a78bfa', marginTop: 2 }}>
-                    {agente.cargo}
-                  </div>
-                  <div style={{ fontSize: 11, opacity: 0.55, marginTop: 2 }}>
-                    {agente.fase}
-                  </div>
+                  <option value="instagram">Instagram</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="youtube">YouTube</option>
+                  <option value="linkedin">LinkedIn</option>
+                </select>
+              </div>
 
-                  <div style={{ marginTop: 12, fontSize: 12 }}>
-                    {ativo && '🧠 A pensar...'}
-                    {!ativo && concluido && '✅ Concluído'}
-                    {!ativo && !concluido && '⏳ A aguardar'}
-                  </div>
-                </div>
-              )
-            })}
+              <div style={{ gridColumn: 'span 2' }}>
+                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Objetivo</div>
+                <input
+                  value={objetivo}
+                  onChange={e => setObjetivo(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: 12,
+                    borderRadius: 10,
+                    border: '1px solid rgba(255,255,255,0.10)',
+                    background: '#10101a',
+                    color: '#fff',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+            </div>
+
+            <div
+              style={{
+                height: 6,
+                borderRadius: 999,
+                background: 'rgba(255,255,255,0.08)',
+                marginTop: 18,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  width: loading ? '45%' : tarefas.length ? '100%' : '0%',
+                  height: '100%',
+                  background: '#7c7bfa',
+                  transition: 'all 0.4s ease',
+                }}
+              />
+            </div>
           </div>
 
-          {FASES.map((fase) => {
-            const lista = tarefas.filter((t) => t.fase === fase)
+          {!!erro && (
+            <div
+              style={{
+                marginBottom: 18,
+                padding: 14,
+                borderRadius: 12,
+                background: 'rgba(248,113,113,0.10)',
+                border: '1px solid rgba(248,113,113,0.25)',
+                color: '#f87171',
+                fontSize: 14,
+              }}
+            >
+              {erro}
+            </div>
+          )}
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: 14,
+              marginBottom: 22,
+            }}
+          >
+            {agentesStatus.map(agente => (
+              <div
+                key={agente.id}
+                style={{
+                  borderRadius: 16,
+                  padding: 16,
+                  border: `1px solid ${corFase(agente.fase)}55`,
+                  background: 'rgba(10,18,16,0.85)',
+                  boxShadow: '0 0 0 1px rgba(0,0,0,0.15) inset',
+                }}
+              >
+                <div style={{ fontSize: 22, marginBottom: 8 }}>{agente.emoji}</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{agente.nome}</div>
+                <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>{agente.cargo}</div>
+                <div style={{ fontSize: 12, color: corFase(agente.fase), marginTop: 6 }}>{agente.fase}</div>
+                <div style={{ fontSize: 12, marginTop: 10, color: corEstado(agente.status === 'Concluído' ? 'concluido' : loading ? 'a_trabalhar' : 'pendente') }}>
+                  {agente.status}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {FASES.map(fase => {
+            const lista = tarefas.filter(t => t.fase === fase)
+            if (!loading && lista.length === 0) return null
 
             return (
-              <div key={fase} style={{ marginBottom: 28 }}>
-                <h3 style={{ marginBottom: 12 }}>
-                  {fase} ({lista.length})
-                </h3>
+              <div key={fase} style={{ marginBottom: 24 }}>
+                <div style={{ marginBottom: 10, fontWeight: 700, fontSize: 20, color: '#fff' }}>
+                  {fase} ({loading ? 0 : resumo.find(r => r.fase === fase)?.total || 0})
+                </div>
 
-                {lista.length === 0 && loading && (
-                  <p style={{ opacity: 0.55 }}>A equipa está a trabalhar...</p>
+                {loading && !lista.length && (
+                  <div style={{ opacity: 0.7, fontSize: 14 }}>A equipa está a trabalhar...</div>
                 )}
 
-                {lista.map((t) => (
-                  <div key={t.id} style={cardResultado}>
-                    <div style={{ marginBottom: 8 }}>
-                      <strong>{t.agente_nome}</strong> — {t.agente_cargo}
-                    </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {lista.map(t => (
+                    <div
+                      key={t.id}
+                      style={{
+                        borderRadius: 16,
+                        border: '1px solid rgba(255,255,255,0.10)',
+                        background: '#0e0f17',
+                        padding: 18,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          gap: 12,
+                          flexWrap: 'wrap',
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 16 }}>
+                            {t.agente_nome} — {t.agente_cargo}
+                          </div>
+                          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
+                            {t.fase} • {t.titulo}
+                          </div>
+                        </div>
 
-                    <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 12 }}>
-                      {t.fase} • {t.titulo}
-                    </div>
+                        <div
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: 999,
+                            background: t.estado === 'concluido' ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)',
+                            border: `1px solid ${t.estado === 'concluido' ? 'rgba(34,197,94,0.30)' : 'rgba(245,158,11,0.30)'}`,
+                            color: t.estado === 'concluido' ? '#22c55e' : '#f59e0b',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            height: 'fit-content',
+                          }}
+                        >
+                          {t.estado === 'concluido' ? '✅ Concluído' : '⏳ A trabalhar'}
+                        </div>
+                      </div>
 
-                    <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                      {t.conteudo}
-                    </p>
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                          gap: 12,
+                          marginBottom: 14,
+                        }}
+                      >
+                        <div
+                          style={{
+                            padding: 12,
+                            borderRadius: 12,
+                            background: '#141624',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                          }}
+                        >
+                          <div style={{ fontSize: 11, opacity: 0.65, marginBottom: 6 }}>Formato</div>
+                          <div style={{ fontWeight: 600 }}>{t.formato || 'Post'}</div>
+                        </div>
 
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
-                      {t.estado !== 'aprovado' && t.estado !== 'publicado' && t.estado !== 'agendado' && (
-                        <button onClick={() => aprovar(t.id)} style={botaoAprovar}>
-                          ✅ Aprovar
-                        </button>
-                      )}
+                        <div
+                          style={{
+                            padding: 12,
+                            borderRadius: 12,
+                            background: '#141624',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                          }}
+                        >
+                          <div style={{ fontSize: 11, opacity: 0.65, marginBottom: 6 }}>Plataforma</div>
+                          <div style={{ fontWeight: 600 }}>{t.plataforma || plataforma}</div>
+                        </div>
 
-                      {t.estado === 'aprovado' && (
-                        <>
-                          <input
-                            type="datetime-local"
-                            value={datasAgendamento[t.id] || ''}
-                            onChange={(e) =>
-                              setDatasAgendamento((prev) => ({
-                                ...prev,
-                                [t.id]: e.target.value,
-                              }))
-                            }
-                            style={inputData}
-                          />
+                        <div
+                          style={{
+                            padding: 12,
+                            borderRadius: 12,
+                            background: '#141624',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                          }}
+                        >
+                          <div style={{ fontSize: 11, opacity: 0.65, marginBottom: 6 }}>Hora sugerida</div>
+                          <div style={{ fontWeight: 600 }}>{t.hora_sugerida || '09:00'}</div>
+                        </div>
+                      </div>
 
-                          <button
-                            onClick={() => agendarPublicacao(t)}
-                            disabled={agendandoId === t.id}
-                            style={botaoAgendar}
-                          >
-                            {agendandoId === t.id ? 'A agendar...' : '📅 Agendar'}
-                          </button>
+                      <div
+                        style={{
+                          padding: 14,
+                          borderRadius: 12,
+                          background: '#141624',
+                          border: '1px solid rgba(255,255,255,0.06)',
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Conteúdo completo</div>
+                        <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.65 }}>
+                          {t.conteudo}
+                        </div>
+                      </div>
 
-                          <button
-                            onClick={() => publicarInstagram(t.id)}
-                            disabled={publicandoId === t.id}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                          gap: 12,
+                        }}
+                      >
+                        <div
+                          style={{
+                            padding: 14,
+                            borderRadius: 12,
+                            background: '#141624',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                          }}
+                        >
+                          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Legenda pronta</div>
+                          <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55 }}>
+                            {t.legenda || 'Sem legenda específica.'}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            padding: 14,
+                            borderRadius: 12,
+                            background: '#141624',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                          }}
+                        >
+                          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Texto do criativo</div>
+                          <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55 }}>
+                            {t.texto_criativo || 'Sem texto específico para o criativo.'}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            padding: 14,
+                            borderRadius: 12,
+                            background: '#141624',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                          }}
+                        >
+                          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Hashtags</div>
+                          <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55 }}>
+                            {t.hashtags || '#adpulse #marketingdigital'}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            padding: 14,
+                            borderRadius: 12,
+                            background: '#141624',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                          }}
+                        >
+                          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>CTA</div>
+                          <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55 }}>
+                            {t.cta || 'Experimenta grátis na AdPulse.'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          padding: 14,
+                          borderRadius: 12,
+                          background: '#141624',
+                          border: '1px solid rgba(255,255,255,0.06)',
+                          marginTop: 12,
+                        }}
+                      >
+                        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Prompt de imagem</div>
+                        <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55 }}>
+                          {t.prompt_imagem || 'Criar um criativo moderno para redes sociais, dark mode, visual tech e profissional.'}
+                        </div>
+                      </div>
+
+                      {!!imagemPorTarefa[t.id] && (
+                        <div
+                          style={{
+                            marginTop: 14,
+                            padding: 14,
+                            borderRadius: 12,
+                            background: '#111320',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                          }}
+                        >
+                          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>Imagem gerada</div>
+                          <img
+                            src={imagemPorTarefa[t.id]}
+                            alt={t.titulo}
                             style={{
-                              padding: '8px 12px',
-                              background: '#3b82f6',
-                              border: 'none',
-                              borderRadius: 8,
-                              color: '#fff',
-                              cursor: publicandoId === t.id ? 'not-allowed' : 'pointer',
-                              fontWeight: 700,
-                              opacity: publicandoId === t.id ? 0.7 : 1,
+                              width: '100%',
+                              maxWidth: 500,
+                              borderRadius: 12,
+                              border: '1px solid rgba(255,255,255,0.08)',
+                              display: 'block',
                             }}
-                          >
-                            {publicandoId === t.id ? 'A publicar...' : '🚀 Publicar agora'}
-                          </button>
-                        </>
+                          />
+                        </div>
                       )}
 
-                      {t.estado === 'aprovado' && (
-                        <span style={{ color: '#22c55e', display: 'block', paddingTop: 8 }}>
-                          ✔️ Aprovado
-                        </span>
-                      )}
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
+                        <button
+                          onClick={() =>
+                            copiar(
+                              `Título:
+${t.titulo}
 
-                      {t.estado === 'agendado' && (
-                        <span style={{ color: '#fbbf24', display: 'block', paddingTop: 8 }}>
-                          📅 Agendado para {formatarData(t.data_publicacao)}
-                        </span>
-                      )}
+Conteúdo:
+${stripMarkdown(t.conteudo)}
 
-                      {t.estado === 'publicado' && (
-                        <span style={{ color: '#60a5fa', display: 'block', paddingTop: 8 }}>
-                          🚀 Publicado
-                        </span>
-                      )}
+Legenda:
+${stripMarkdown(t.legenda || '')}
+
+Texto do criativo:
+${stripMarkdown(t.texto_criativo || '')}
+
+Hashtags:
+${t.hashtags || ''}
+
+CTA:
+${stripMarkdown(t.cta || '')}
+
+Prompt de imagem:
+${stripMarkdown(t.prompt_imagem || '')}`,
+                              t.id
+                            )
+                          }
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: 10,
+                            border: '1px solid rgba(255,255,255,0.10)',
+                            background: copiadoId === t.id ? 'rgba(34,197,94,0.12)' : '#151523',
+                            color: copiadoId === t.id ? '#22c55e' : '#fff',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {copiadoId === t.id ? '✅ Copiado' : '📋 Copiar conteúdo'}
+                        </button>
+
+                        <button
+                          onClick={() => gerarImagem(t)}
+                          disabled={gerandoImagemId === t.id}
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: 10,
+                            border: 'none',
+                            background: '#7c7bfa',
+                            color: '#fff',
+                            cursor: 'pointer',
+                            fontWeight: 700,
+                            opacity: gerandoImagemId === t.id ? 0.7 : 1,
+                          }}
+                        >
+                          {gerandoImagemId === t.id ? '🎨 A gerar imagem...' : '🎨 Gerar imagem'}
+                        </button>
+
+                        <button
+                          onClick={() => guardarNoCalendario(t)}
+                          disabled={guardandoId === t.id}
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: 10,
+                            border: 'none',
+                            background: '#14b8a6',
+                            color: '#fff',
+                            cursor: 'pointer',
+                            fontWeight: 700,
+                            opacity: guardandoId === t.id ? 0.7 : 1,
+                          }}
+                        >
+                          {guardandoId === t.id ? '💾 A guardar...' : '💾 Guardar no calendário'}
+                        </button>
+
+                        <button
+                          onClick={abrirInstagram}
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: 10,
+                            border: '1px solid rgba(255,255,255,0.10)',
+                            background: '#151523',
+                            color: '#fff',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                          }}
+                        >
+                          📱 Ir ao Instagram
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )
           })}
@@ -528,93 +859,4 @@ export default function AgentesIA() {
       </LayoutPainel>
     </>
   )
-}
-
-const heroCard: CSSProperties = {
-  background: 'rgba(124,123,250,0.08)',
-  border: '1px solid rgba(124,123,250,0.25)',
-  borderRadius: 18,
-  padding: 22,
-  marginBottom: 22,
-}
-
-const gridAgentes: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-  gap: 14,
-  marginBottom: 30,
-}
-
-const botaoSecundario: CSSProperties = {
-  padding: '14px 18px',
-  background: '#18181b',
-  color: '#fff',
-  border: '1px solid #333',
-  borderRadius: 12,
-  cursor: 'pointer',
-  fontWeight: 700,
-}
-
-const botaoAprovar: CSSProperties = {
-  padding: '8px 12px',
-  background: '#22c55e',
-  border: 'none',
-  borderRadius: 8,
-  color: '#fff',
-  cursor: 'pointer',
-  fontWeight: 700,
-}
-
-const botaoAgendar: CSSProperties = {
-  padding: '8px 12px',
-  background: '#f59e0b',
-  border: 'none',
-  borderRadius: 8,
-  color: '#fff',
-  cursor: 'pointer',
-  fontWeight: 700,
-}
-
-const inputData: CSSProperties = {
-  background: '#18181b',
-  color: '#fff',
-  border: '1px solid #333',
-  borderRadius: 8,
-  padding: '8px 10px',
-}
-
-const cardResultado: CSSProperties = {
-  background: '#111',
-  padding: 20,
-  borderRadius: 14,
-  marginBottom: 14,
-  border: '1px solid #333',
-}
-
-const barraFundo: CSSProperties = {
-  height: 8,
-  background: '#222',
-  borderRadius: 99,
-  marginTop: 18,
-  overflow: 'hidden',
-}
-
-const erroBox: CSSProperties = {
-  marginTop: 14,
-  padding: 12,
-  borderRadius: 10,
-  background: 'rgba(248,113,113,0.12)',
-  border: '1px solid rgba(248,113,113,0.35)',
-  color: '#f87171',
-  fontSize: 14,
-}
-
-const mensagemBox: CSSProperties = {
-  marginTop: 14,
-  padding: 12,
-  borderRadius: 10,
-  background: 'rgba(34,197,94,0.1)',
-  border: '1px solid rgba(34,197,94,0.3)',
-  color: '#22c55e',
-  fontSize: 14,
 }
