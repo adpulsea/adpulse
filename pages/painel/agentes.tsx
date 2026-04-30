@@ -1,5 +1,6 @@
 import Head from 'next/head'
 import { useEffect, useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import { supabase } from '@/lib/supabase'
 
@@ -50,6 +51,7 @@ export default function AgentesIA() {
   const [progresso, setProgresso] = useState(0)
   const [agenteAtivo, setAgenteAtivo] = useState<string | null>(null)
   const [execucaoId, setExecucaoId] = useState<string | null>(null)
+  const [publicandoId, setPublicandoId] = useState<string | null>(null)
 
   const tarefasPorAgente = useMemo(() => {
     const mapa: Record<string, Tarefa | undefined> = {}
@@ -178,6 +180,38 @@ export default function AgentesIA() {
     )
   }
 
+  const publicarInstagram = async (id: string) => {
+    setPublicandoId(id)
+    setErro('')
+    setMensagem('')
+
+    try {
+      const resp = await fetch('/api/ia/publicar-instagram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tarefa_id: id }),
+      })
+
+      const data = await resp.json()
+
+      if (!resp.ok) {
+        setErro(data?.erro || 'Erro ao publicar no Instagram.')
+        setPublicandoId(null)
+        return
+      }
+
+      setTarefas((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, estado: 'publicado' } : t))
+      )
+
+      setMensagem(data?.mensagem || '🚀 Publicado no Instagram.')
+    } catch (e: any) {
+      setErro(e?.message || 'Erro inesperado ao publicar.')
+    }
+
+    setPublicandoId(null)
+  }
+
   const guardarCampanha = async () => {
     if (!execucaoId) {
       setMensagem('✅ A campanha já está guardada nas tarefas.')
@@ -204,21 +238,13 @@ export default function AgentesIA() {
   return (
     <>
       <Head>
-        <title>Equipa AdPulse PRO</title>
+        <title>Equipa AdPulse GOD MODE</title>
       </Head>
 
       <LayoutPainel titulo="Equipa AdPulse — GOD MODE 🚀">
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
 
-          <div
-            style={{
-              background: 'rgba(124,123,250,0.08)',
-              border: '1px solid rgba(124,123,250,0.25)',
-              borderRadius: 18,
-              padding: 22,
-              marginBottom: 22,
-            }}
-          >
+          <div style={heroCard}>
             <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>
               🤖 Agência IA AdPulse
             </h2>
@@ -259,15 +285,7 @@ export default function AgentesIA() {
             </div>
 
             {(loading || tarefas.length > 0) && (
-              <div
-                style={{
-                  height: 8,
-                  background: '#222',
-                  borderRadius: 99,
-                  marginTop: 18,
-                  overflow: 'hidden',
-                }}
-              >
+              <div style={barraFundo}>
                 <div
                   style={{
                     width: `${(progresso / 13) * 100}%`,
@@ -279,27 +297,11 @@ export default function AgentesIA() {
               </div>
             )}
 
-            {erro && (
-              <div style={erroBox}>
-                {erro}
-              </div>
-            )}
-
-            {mensagem && (
-              <div style={mensagemBox}>
-                {mensagem}
-              </div>
-            )}
+            {erro && <div style={erroBox}>{erro}</div>}
+            {mensagem && <div style={mensagemBox}>{mensagem}</div>}
           </div>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-              gap: 14,
-              marginBottom: 30,
-            }}
-          >
+          <div style={gridAgentes}>
             {AGENTES.map((agente) => {
               const tarefa = tarefasPorAgente[agente.id]
               const ativo = agenteAtivo === agente.id
@@ -370,15 +372,44 @@ export default function AgentesIA() {
                       {t.conteudo}
                     </p>
 
-                    {t.estado !== 'aprovado' ? (
-                      <button onClick={() => aprovar(t.id)} style={botaoAprovar}>
-                        ✅ Aprovar
-                      </button>
-                    ) : (
-                      <span style={{ color: '#22c55e', marginTop: 10, display: 'block' }}>
-                        ✔️ Aprovado
-                      </span>
-                    )}
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+                      {t.estado !== 'aprovado' && t.estado !== 'publicado' && (
+                        <button onClick={() => aprovar(t.id)} style={botaoAprovar}>
+                          ✅ Aprovar
+                        </button>
+                      )}
+
+                      {t.estado === 'aprovado' && (
+                        <button
+                          onClick={() => publicarInstagram(t.id)}
+                          disabled={publicandoId === t.id}
+                          style={{
+                            padding: '8px 12px',
+                            background: '#3b82f6',
+                            border: 'none',
+                            borderRadius: 8,
+                            color: '#fff',
+                            cursor: publicandoId === t.id ? 'not-allowed' : 'pointer',
+                            fontWeight: 700,
+                            opacity: publicandoId === t.id ? 0.7 : 1,
+                          }}
+                        >
+                          {publicandoId === t.id ? 'A publicar...' : '🚀 Publicar no Instagram'}
+                        </button>
+                      )}
+
+                      {t.estado === 'aprovado' && (
+                        <span style={{ color: '#22c55e', display: 'block', paddingTop: 8 }}>
+                          ✔️ Aprovado
+                        </span>
+                      )}
+
+                      {t.estado === 'publicado' && (
+                        <span style={{ color: '#60a5fa', display: 'block', paddingTop: 8 }}>
+                          🚀 Publicado no Instagram
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -390,7 +421,22 @@ export default function AgentesIA() {
   )
 }
 
-const botaoSecundario: React.CSSProperties = {
+const heroCard: CSSProperties = {
+  background: 'rgba(124,123,250,0.08)',
+  border: '1px solid rgba(124,123,250,0.25)',
+  borderRadius: 18,
+  padding: 22,
+  marginBottom: 22,
+}
+
+const gridAgentes: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+  gap: 14,
+  marginBottom: 30,
+}
+
+const botaoSecundario: CSSProperties = {
   padding: '14px 18px',
   background: '#18181b',
   color: '#fff',
@@ -400,8 +446,7 @@ const botaoSecundario: React.CSSProperties = {
   fontWeight: 700,
 }
 
-const botaoAprovar: React.CSSProperties = {
-  marginTop: 12,
+const botaoAprovar: CSSProperties = {
   padding: '8px 12px',
   background: '#22c55e',
   border: 'none',
@@ -411,7 +456,7 @@ const botaoAprovar: React.CSSProperties = {
   fontWeight: 700,
 }
 
-const cardResultado: React.CSSProperties = {
+const cardResultado: CSSProperties = {
   background: '#111',
   padding: 20,
   borderRadius: 14,
@@ -419,7 +464,15 @@ const cardResultado: React.CSSProperties = {
   border: '1px solid #333',
 }
 
-const erroBox: React.CSSProperties = {
+const barraFundo: CSSProperties = {
+  height: 8,
+  background: '#222',
+  borderRadius: 99,
+  marginTop: 18,
+  overflow: 'hidden',
+}
+
+const erroBox: CSSProperties = {
   marginTop: 14,
   padding: 12,
   borderRadius: 10,
@@ -429,7 +482,7 @@ const erroBox: React.CSSProperties = {
   fontSize: 14,
 }
 
-const mensagemBox: React.CSSProperties = {
+const mensagemBox: CSSProperties = {
   marginTop: 14,
   padding: 12,
   borderRadius: 10,
