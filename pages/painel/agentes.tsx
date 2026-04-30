@@ -31,6 +31,7 @@ type AgenteUI = {
 }
 
 const AGENTES_UI: AgenteUI[] = [
+  { id: 'post_rapido', nome: 'Post Rápido', cargo: 'Criador Instantâneo', fase: 'Criação Rápida', emoji: '⚡' },
   { id: 'explorador', nome: 'Explorador', cargo: 'Chief Intelligence Officer', fase: 'Inteligência', emoji: '🌐' },
   { id: 'rui', nome: 'Rui Ferreira', cargo: 'Research & Tendências', fase: 'Inteligência', emoji: '🔬' },
   { id: 'sofia', nome: 'Sofia Martins', cargo: 'Estratégia de Conteúdo', fase: 'Estratégia', emoji: '🧠' },
@@ -46,10 +47,12 @@ const AGENTES_UI: AgenteUI[] = [
   { id: 'antonio', nome: 'António Mendes', cargo: 'Growth Hacker', fase: 'Performance', emoji: '🚀' },
 ]
 
-const FASES = ['Inteligência', 'Estratégia', 'Criação', 'Qualidade', 'Execução', 'Performance']
+const FASES = ['Criação Rápida', 'Inteligência', 'Estratégia', 'Criação', 'Qualidade', 'Execução', 'Performance']
 
 const corFase = (fase: string) => {
   switch (fase) {
+    case 'Criação Rápida':
+      return '#f59e0b'
     case 'Inteligência':
       return '#22c55e'
     case 'Estratégia':
@@ -112,12 +115,18 @@ function dataComHora(hora: string) {
     0,
     0
   )
+
+  if (d.getTime() < agora.getTime()) {
+    d.setDate(d.getDate() + 1)
+  }
+
   return d.toISOString()
 }
 
 export default function AgentesIA() {
   const [tarefas, setTarefas] = useState<Tarefa[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingRapido, setLoadingRapido] = useState(false)
   const [erro, setErro] = useState('')
   const [nicho, setNicho] = useState('marketing digital')
   const [plataforma, setPlataforma] = useState('instagram')
@@ -139,7 +148,8 @@ export default function AgentesIA() {
       const tarefa = tarefas.find(t => t.agente_id === agente.id)
 
       let status = 'Pronto'
-      if (loading) status = 'A trabalhar...'
+      if ((loading || loadingRapido) && agente.id === 'post_rapido') status = 'A criar...'
+      if (loading && agente.id !== 'post_rapido') status = 'A trabalhar...'
       if (tarefa?.estado === 'concluido') status = 'Concluído'
 
       return {
@@ -147,7 +157,7 @@ export default function AgentesIA() {
         status,
       }
     })
-  }, [tarefas, loading])
+  }, [tarefas, loading, loadingRapido])
 
   const copiar = async (texto: string, id: string) => {
     try {
@@ -195,25 +205,111 @@ ${t.prompt_imagem || '-'}`
     window.open('https://www.instagram.com/', '_blank')
   }
 
+  const gerarPostRapido = async () => {
+    if (loadingRapido || loading) return
+
+    setErro('')
+    setLoadingRapido(true)
+    setImagemPorTarefa({})
+
+    const placeholder: Tarefa = {
+      id: 'post_rapido_placeholder',
+      agente_id: 'post_rapido',
+      agente_nome: 'Post Rápido',
+      agente_cargo: 'Criador Instantâneo',
+      fase: 'Criação Rápida',
+      titulo: 'A criar post rápido...',
+      conteudo: 'A AdPulse está a preparar uma legenda, texto do criativo, hashtags, CTA e prompt de imagem.',
+      estado: 'a_trabalhar',
+      formato: 'Post',
+      plataforma,
+      legenda: '',
+      texto_criativo: '',
+      hashtags: '',
+      cta: '',
+      prompt_imagem: '',
+      hora_sugerida: '09:00',
+    }
+
+    setTarefas([placeholder])
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      const resp = await fetch('/api/ia/post-rapido', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({
+          nicho,
+          plataforma,
+          objetivo,
+        }),
+      })
+
+      const data = await resp.json()
+
+      if (!resp.ok) {
+        throw new Error(data?.error || data?.erro || 'Erro ao gerar post rápido.')
+      }
+
+      const post = data?.post || data
+
+      const tarefaRapida: Tarefa = {
+        id: `post_rapido_${Date.now()}`,
+        agente_id: 'post_rapido',
+        agente_nome: 'Post Rápido',
+        agente_cargo: 'Criador Instantâneo',
+        fase: 'Criação Rápida',
+        titulo: post?.titulo || 'Post rápido AdPulse',
+        conteudo:
+          post?.conteudo ||
+          `Post pronto para ${plataforma} no nicho ${nicho}, com foco em ${objetivo}.`,
+        estado: 'concluido',
+        formato: post?.formato || 'Post',
+        plataforma: post?.plataforma || plataforma,
+        legenda: post?.legenda || '',
+        texto_criativo: post?.texto_criativo || '',
+        hashtags: post?.hashtags || '',
+        cta: post?.cta || '',
+        prompt_imagem: post?.prompt_imagem || '',
+        hora_sugerida: post?.hora_sugerida || '09:00',
+      }
+
+      setTarefas([tarefaRapida])
+    } catch (e: any) {
+      setErro(e?.message || 'Ocorreu um erro ao gerar o post rápido.')
+      setTarefas([])
+    } finally {
+      setLoadingRapido(false)
+    }
+  }
+
   const gerarCampanha = async () => {
-    if (loading) return
+    if (loading || loadingRapido) return
 
     setErro('')
     setLoading(true)
     setImagemPorTarefa({})
 
-    const placeholders: Tarefa[] = AGENTES_UI.map(ag => ({
-      id: ag.id,
-      agente_id: ag.id,
-      agente_nome: ag.nome,
-      agente_cargo: ag.cargo,
-      fase: ag.fase,
-      titulo: 'A preparar...',
-      conteudo: 'O agente está a trabalhar...',
-      estado: 'a_trabalhar',
-      formato: 'Post',
-      plataforma,
-    }))
+    const placeholders: Tarefa[] = AGENTES_UI
+      .filter(ag => ag.id !== 'post_rapido')
+      .map(ag => ({
+        id: ag.id,
+        agente_id: ag.id,
+        agente_nome: ag.nome,
+        agente_cargo: ag.cargo,
+        fase: ag.fase,
+        titulo: 'A preparar...',
+        conteudo: 'O agente está a trabalhar...',
+        estado: 'a_trabalhar',
+        formato: 'Post',
+        plataforma,
+      }))
 
     setTarefas(placeholders)
 
@@ -238,7 +334,7 @@ ${t.prompt_imagem || '-'}`
       const data = await resp.json()
 
       if (!resp.ok) {
-        throw new Error(data?.error || 'Erro ao gerar campanha.')
+        throw new Error(data?.error || data?.erro || 'Erro ao gerar campanha.')
       }
 
       if (Array.isArray(data?.tarefas)) {
@@ -275,13 +371,13 @@ ${t.prompt_imagem || '-'}`
       const data = await resp.json()
 
       if (!resp.ok) {
-        throw new Error(data?.error || 'Erro ao gerar imagem.')
+        throw new Error(data?.error || data?.erro || 'Erro ao gerar imagem.')
       }
 
-      if (data?.imagem) {
+      if (data?.imagem || data?.imagem_url) {
         setImagemPorTarefa(prev => ({
           ...prev,
-          [tarefa.id]: data.imagem,
+          [tarefa.id]: data.imagem_url || data.imagem,
         }))
       } else {
         throw new Error('A imagem não foi devolvida.')
@@ -302,6 +398,7 @@ ${t.prompt_imagem || '-'}`
       } = await supabase.auth.getSession()
 
       const utilizadorId = session?.user?.id
+
       if (!utilizadorId) {
         throw new Error('Sessão não encontrada. Faz login novamente.')
       }
@@ -336,7 +433,7 @@ ${t.prompt_imagem || '-'}`
         <title>Equipa AdPulse — GOD MODE</title>
       </Head>
 
-      <LayoutPainel titulo="Equipa AdPulse — GOD MODE 🚀">
+      <LayoutPainel titulo="Equipa AdPulse — Conteúdo com IA 🚀">
         <div style={{ maxWidth: 1250, margin: '0 auto' }}>
           <div
             style={{
@@ -349,16 +446,35 @@ ${t.prompt_imagem || '-'}`
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 6 }}>🤖 Agência IA AdPulse</div>
+                <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 6 }}>
+                  🤖 Agência IA AdPulse
+                </div>
                 <div style={{ opacity: 0.8, fontSize: 14 }}>
-                  13 agentes especializados a pensar, criar, rever, planear e preparar a tua campanha.
+                  Cria posts rápidos em segundos ou campanhas completas com a equipa de agentes.
                 </div>
               </div>
 
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button
+                  onClick={gerarPostRapido}
+                  disabled={loadingRapido || loading}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: '#f59e0b',
+                    color: '#fff',
+                    fontWeight: 800,
+                    cursor: loadingRapido || loading ? 'not-allowed' : 'pointer',
+                    opacity: loadingRapido || loading ? 0.7 : 1,
+                  }}
+                >
+                  {loadingRapido ? '⚡ A criar post...' : '⚡ Gerar post rápido'}
+                </button>
+
+                <button
                   onClick={gerarCampanha}
-                  disabled={loading}
+                  disabled={loading || loadingRapido}
                   style={{
                     padding: '12px 16px',
                     borderRadius: 10,
@@ -366,7 +482,8 @@ ${t.prompt_imagem || '-'}`
                     background: '#7c7bfa',
                     color: '#fff',
                     fontWeight: 700,
-                    cursor: 'pointer',
+                    cursor: loading || loadingRapido ? 'not-allowed' : 'pointer',
+                    opacity: loading || loadingRapido ? 0.7 : 1,
                   }}
                 >
                   {loading ? '🤖 Equipa a trabalhar...' : '🚀 Gerar campanha GOD MODE'}
@@ -382,7 +499,7 @@ ${t.prompt_imagem || '-'}`
                     background: '#151523',
                     color: '#fff',
                     fontWeight: 600,
-                    cursor: 'pointer',
+                    cursor: tarefas.length ? 'pointer' : 'not-allowed',
                     opacity: tarefas.length ? 1 : 0.5,
                   }}
                 >
@@ -482,9 +599,9 @@ ${t.prompt_imagem || '-'}`
             >
               <div
                 style={{
-                  width: loading ? '45%' : tarefas.length ? '100%' : '0%',
+                  width: loading || loadingRapido ? '45%' : tarefas.length ? '100%' : '0%',
                   height: '100%',
-                  background: '#7c7bfa',
+                  background: loadingRapido ? '#f59e0b' : '#7c7bfa',
                   transition: 'all 0.4s ease',
                 }}
               />
@@ -522,7 +639,9 @@ ${t.prompt_imagem || '-'}`
                   borderRadius: 16,
                   padding: 16,
                   border: `1px solid ${corFase(agente.fase)}55`,
-                  background: 'rgba(10,18,16,0.85)',
+                  background: agente.id === 'post_rapido'
+                    ? 'rgba(50,38,10,0.85)'
+                    : 'rgba(10,18,16,0.85)',
                   boxShadow: '0 0 0 1px rgba(0,0,0,0.15) inset',
                 }}
               >
@@ -530,7 +649,19 @@ ${t.prompt_imagem || '-'}`
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{agente.nome}</div>
                 <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>{agente.cargo}</div>
                 <div style={{ fontSize: 12, color: corFase(agente.fase), marginTop: 6 }}>{agente.fase}</div>
-                <div style={{ fontSize: 12, marginTop: 10, color: corEstado(agente.status === 'Concluído' ? 'concluido' : loading ? 'a_trabalhar' : 'pendente') }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    marginTop: 10,
+                    color: corEstado(
+                      agente.status === 'Concluído'
+                        ? 'concluido'
+                        : loading || loadingRapido
+                          ? 'a_trabalhar'
+                          : 'pendente'
+                    ),
+                  }}
+                >
                   {agente.status}
                 </div>
               </div>
@@ -539,15 +670,15 @@ ${t.prompt_imagem || '-'}`
 
           {FASES.map(fase => {
             const lista = tarefas.filter(t => t.fase === fase)
-            if (!loading && lista.length === 0) return null
+            if (!loading && !loadingRapido && lista.length === 0) return null
 
             return (
               <div key={fase} style={{ marginBottom: 24 }}>
                 <div style={{ marginBottom: 10, fontWeight: 700, fontSize: 20, color: '#fff' }}>
-                  {fase} ({loading ? 0 : resumo.find(r => r.fase === fase)?.total || 0})
+                  {fase} ({loading || loadingRapido ? lista.length : resumo.find(r => r.fase === fase)?.total || 0})
                 </div>
 
-                {loading && !lista.length && (
+                {(loading || loadingRapido) && !lista.length && (
                   <div style={{ opacity: 0.7, fontSize: 14 }}>A equipa está a trabalhar...</div>
                 )}
 
@@ -802,16 +933,16 @@ ${stripMarkdown(t.prompt_imagem || '')}`,
 
                         <button
                           onClick={() => gerarImagem(t)}
-                          disabled={gerandoImagemId === t.id}
+                          disabled={gerandoImagemId === t.id || t.estado !== 'concluido'}
                           style={{
                             padding: '10px 14px',
                             borderRadius: 10,
                             border: 'none',
                             background: '#7c7bfa',
                             color: '#fff',
-                            cursor: 'pointer',
+                            cursor: gerandoImagemId === t.id || t.estado !== 'concluido' ? 'not-allowed' : 'pointer',
                             fontWeight: 700,
-                            opacity: gerandoImagemId === t.id ? 0.7 : 1,
+                            opacity: gerandoImagemId === t.id || t.estado !== 'concluido' ? 0.7 : 1,
                           }}
                         >
                           {gerandoImagemId === t.id ? '🎨 A gerar imagem...' : '🎨 Gerar imagem'}
@@ -819,16 +950,16 @@ ${stripMarkdown(t.prompt_imagem || '')}`,
 
                         <button
                           onClick={() => guardarNoCalendario(t)}
-                          disabled={guardandoId === t.id}
+                          disabled={guardandoId === t.id || t.estado !== 'concluido'}
                           style={{
                             padding: '10px 14px',
                             borderRadius: 10,
                             border: 'none',
                             background: '#14b8a6',
                             color: '#fff',
-                            cursor: 'pointer',
+                            cursor: guardandoId === t.id || t.estado !== 'concluido' ? 'not-allowed' : 'pointer',
                             fontWeight: 700,
-                            opacity: guardandoId === t.id ? 0.7 : 1,
+                            opacity: guardandoId === t.id || t.estado !== 'concluido' ? 0.7 : 1,
                           }}
                         >
                           {guardandoId === t.id ? '💾 A guardar...' : '💾 Guardar no calendário'}
