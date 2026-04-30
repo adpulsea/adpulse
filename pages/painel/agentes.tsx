@@ -15,6 +15,9 @@ type Tarefa = {
   conteudo: string
   estado: string
   criado_em?: string
+  data_publicacao?: string | null
+  plataforma_publicacao?: string | null
+  publicado_em?: string | null
 }
 
 type Agente = {
@@ -52,6 +55,8 @@ export default function AgentesIA() {
   const [agenteAtivo, setAgenteAtivo] = useState<string | null>(null)
   const [execucaoId, setExecucaoId] = useState<string | null>(null)
   const [publicandoId, setPublicandoId] = useState<string | null>(null)
+  const [agendandoId, setAgendandoId] = useState<string | null>(null)
+  const [datasAgendamento, setDatasAgendamento] = useState<Record<string, string>>({})
 
   const tarefasPorAgente = useMemo(() => {
     const mapa: Record<string, Tarefa | undefined> = {}
@@ -180,6 +185,72 @@ export default function AgentesIA() {
     )
   }
 
+  const agendarPublicacao = async (tarefa: Tarefa) => {
+    const dataSelecionada = datasAgendamento[tarefa.id]
+
+    if (!dataSelecionada) {
+      setErro('Escolhe uma data e hora para agendar.')
+      return
+    }
+
+    setAgendandoId(tarefa.id)
+    setErro('')
+    setMensagem('')
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session?.access_token) {
+        setErro('Sessão inválida. Faz logout e login novamente.')
+        setAgendandoId(null)
+        return
+      }
+
+      const resp = await fetch('/api/ia/agendar-publicacao', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          tarefa_id: tarefa.id,
+          data_publicacao: new Date(dataSelecionada).toISOString(),
+          plataforma: 'instagram',
+          legenda: tarefa.conteudo,
+        }),
+      })
+
+      const data = await resp.json()
+
+      if (!resp.ok) {
+        setErro(data?.erro || 'Erro ao agendar publicação.')
+        setAgendandoId(null)
+        return
+      }
+
+      setTarefas((prev) =>
+        prev.map((t) =>
+          t.id === tarefa.id
+            ? {
+                ...t,
+                estado: 'agendado',
+                data_publicacao: data.tarefa?.data_publicacao || new Date(dataSelecionada).toISOString(),
+                plataforma_publicacao: 'instagram',
+              }
+            : t
+        )
+      )
+
+      setMensagem('📅 Publicação agendada com sucesso.')
+    } catch (e: any) {
+      setErro(e?.message || 'Erro inesperado ao agendar.')
+    }
+
+    setAgendandoId(null)
+  }
+
   const publicarInstagram = async (id: string) => {
     setPublicandoId(id)
     setErro('')
@@ -235,6 +306,17 @@ export default function AgentesIA() {
     setMensagem('✅ Campanha copiada.')
   }
 
+  const formatarData = (valor?: string | null) => {
+    if (!valor) return ''
+    return new Date(valor).toLocaleString('pt-PT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
   return (
     <>
       <Head>
@@ -243,7 +325,6 @@ export default function AgentesIA() {
 
       <LayoutPainel titulo="Equipa AdPulse — GOD MODE 🚀">
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-
           <div style={heroCard}>
             <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>
               🤖 Agência IA AdPulse
@@ -373,29 +454,51 @@ export default function AgentesIA() {
                     </p>
 
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
-                      {t.estado !== 'aprovado' && t.estado !== 'publicado' && (
+                      {t.estado !== 'aprovado' && t.estado !== 'publicado' && t.estado !== 'agendado' && (
                         <button onClick={() => aprovar(t.id)} style={botaoAprovar}>
                           ✅ Aprovar
                         </button>
                       )}
 
                       {t.estado === 'aprovado' && (
-                        <button
-                          onClick={() => publicarInstagram(t.id)}
-                          disabled={publicandoId === t.id}
-                          style={{
-                            padding: '8px 12px',
-                            background: '#3b82f6',
-                            border: 'none',
-                            borderRadius: 8,
-                            color: '#fff',
-                            cursor: publicandoId === t.id ? 'not-allowed' : 'pointer',
-                            fontWeight: 700,
-                            opacity: publicandoId === t.id ? 0.7 : 1,
-                          }}
-                        >
-                          {publicandoId === t.id ? 'A publicar...' : '🚀 Publicar no Instagram'}
-                        </button>
+                        <>
+                          <input
+                            type="datetime-local"
+                            value={datasAgendamento[t.id] || ''}
+                            onChange={(e) =>
+                              setDatasAgendamento((prev) => ({
+                                ...prev,
+                                [t.id]: e.target.value,
+                              }))
+                            }
+                            style={inputData}
+                          />
+
+                          <button
+                            onClick={() => agendarPublicacao(t)}
+                            disabled={agendandoId === t.id}
+                            style={botaoAgendar}
+                          >
+                            {agendandoId === t.id ? 'A agendar...' : '📅 Agendar'}
+                          </button>
+
+                          <button
+                            onClick={() => publicarInstagram(t.id)}
+                            disabled={publicandoId === t.id}
+                            style={{
+                              padding: '8px 12px',
+                              background: '#3b82f6',
+                              border: 'none',
+                              borderRadius: 8,
+                              color: '#fff',
+                              cursor: publicandoId === t.id ? 'not-allowed' : 'pointer',
+                              fontWeight: 700,
+                              opacity: publicandoId === t.id ? 0.7 : 1,
+                            }}
+                          >
+                            {publicandoId === t.id ? 'A publicar...' : '🚀 Publicar agora'}
+                          </button>
+                        </>
                       )}
 
                       {t.estado === 'aprovado' && (
@@ -404,9 +507,15 @@ export default function AgentesIA() {
                         </span>
                       )}
 
+                      {t.estado === 'agendado' && (
+                        <span style={{ color: '#fbbf24', display: 'block', paddingTop: 8 }}>
+                          📅 Agendado para {formatarData(t.data_publicacao)}
+                        </span>
+                      )}
+
                       {t.estado === 'publicado' && (
                         <span style={{ color: '#60a5fa', display: 'block', paddingTop: 8 }}>
-                          🚀 Publicado no Instagram
+                          🚀 Publicado
                         </span>
                       )}
                     </div>
@@ -454,6 +563,24 @@ const botaoAprovar: CSSProperties = {
   color: '#fff',
   cursor: 'pointer',
   fontWeight: 700,
+}
+
+const botaoAgendar: CSSProperties = {
+  padding: '8px 12px',
+  background: '#f59e0b',
+  border: 'none',
+  borderRadius: 8,
+  color: '#fff',
+  cursor: 'pointer',
+  fontWeight: 700,
+}
+
+const inputData: CSSProperties = {
+  background: '#18181b',
+  color: '#fff',
+  border: '1px solid #333',
+  borderRadius: 8,
+  padding: '8px 10px',
 }
 
 const cardResultado: CSSProperties = {
