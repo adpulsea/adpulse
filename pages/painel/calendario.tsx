@@ -1,5 +1,5 @@
 // ============================================
-// AdPulse — Calendário de Conteúdo (Supabase + Equipa AdPulse + Planeamento)
+// AdPulse — Calendário de Conteúdo (Supabase + Equipa AdPulse + Planeamento PRO)
 // ============================================
 
 import Head from 'next/head'
@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import {
   ChevronLeft, ChevronRight, Plus, Sparkles,
-  Loader, X, Check, Trash2, Edit3, Send, Eye, Copy
+  Loader, X, Check, Trash2, Edit3, Send, Eye, Copy, Rocket
 } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import ExportarPDF from '@/components/ExportarPDF'
@@ -36,6 +36,8 @@ type Post = {
   agente_cargo?: string
   fase?: string
 }
+
+type FiltroPlaneamento = 'todos' | 'agendado' | 'publicado' | 'equipa' | 'manual'
 
 // ---- Constantes ----
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
@@ -101,12 +103,14 @@ function ModalPost({
   const gerarComIA = async () => {
     if (!titulo.trim()) return
     setGerando(true)
+
     try {
       const r = await fetch('/api/ia/gerar-conteudo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topico: titulo, plataforma: plat, tom: 'Informal', formato: tipo.toLowerCase() }),
       })
+
       const d = await r.json()
       if (d.legenda) setLegenda(d.legenda)
     } catch {
@@ -282,10 +286,12 @@ function ModalConteudo({
   post,
   onFechar,
   onCopiar,
+  onPublicar,
 }: {
   post: Post
   onFechar: () => void
   onCopiar: (post: Post) => void
+  onPublicar: (post: Post) => void
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -346,7 +352,7 @@ function ModalConteudo({
           </p>
         </div>
 
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 flex-wrap">
           <button
             onClick={() => onCopiar(post)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
@@ -355,6 +361,17 @@ function ModalConteudo({
             <Copy size={14} />
             Copiar conteúdo
           </button>
+
+          {post.estado !== 'publicado' && (
+            <button
+              onClick={() => onPublicar(post)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
+              style={{ background: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer' }}
+            >
+              <Rocket size={14} />
+              Publicar agora
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -376,6 +393,8 @@ export default function Calendario() {
   const [postAberto, setPostAberto] = useState<Post | null>(null)
   const [gerando, setGerando] = useState(false)
   const [mensagem, setMensagem] = useState('')
+  const [filtro, setFiltro] = useState<FiltroPlaneamento>('todos')
+  const [publicandoId, setPublicandoId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!utilizador) return
@@ -478,6 +497,15 @@ export default function Calendario() {
     .filter(p => p.mes === mesAtual && p.ano === anoAtual)
     .sort((a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime())
 
+  const postsPlaneadosFiltrados = postsPlaneadosMes.filter(p => {
+    if (filtro === 'todos') return true
+    if (filtro === 'agendado') return p.estado === 'agendado'
+    if (filtro === 'publicado') return p.estado === 'publicado'
+    if (filtro === 'equipa') return p.origem === 'equipa_adpulse'
+    if (filtro === 'manual') return p.origem === 'posts'
+    return true
+  })
+
   const gerarSemana = async () => {
     if (!utilizador) return
 
@@ -556,6 +584,50 @@ export default function Calendario() {
   const copiarPost = async (post: Post) => {
     await navigator.clipboard.writeText(post.legenda || post.titulo || '')
     setMensagem('Conteúdo copiado.')
+  }
+
+  const publicarAgora = async (post: Post) => {
+    setPublicandoId(post.id)
+
+    if (post.origem === 'equipa_adpulse' && post.tarefa_id) {
+      try {
+        const resp = await fetch('/api/ia/publicar-instagram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tarefa_id: post.tarefa_id }),
+        })
+
+        const data = await resp.json()
+
+        if (!resp.ok) {
+          setMensagem(data?.erro || 'Erro ao publicar.')
+          setPublicandoId(null)
+          return
+        }
+
+        setPosts(prev =>
+          prev.map(p =>
+            p.id === post.id ? { ...p, estado: 'publicado' } : p
+          )
+        )
+
+        if (postAberto?.id === post.id) {
+          setPostAberto({ ...post, estado: 'publicado' })
+        }
+
+        setMensagem(data?.mensagem || 'Publicado com sucesso.')
+      } catch {
+        setMensagem('Erro ao publicar.')
+      }
+
+      setPublicandoId(null)
+      return
+    }
+
+    if (post.origem === 'posts') {
+      router.push(`/painel/publicar?id=${post.id}`)
+      setPublicandoId(null)
+    }
   }
 
   const corPlataforma = (pl: string) => PLATAFORMAS.find(p => p.id === pl)?.cor || '#7c7bfa'
@@ -675,9 +747,18 @@ export default function Calendario() {
 
                     <div className="flex flex-col gap-1" onClick={e => e.stopPropagation()}>
                       {psDia.slice(0, 3).map(p => (
-                        <div key={p.id} className="flex items-center gap-1.5 px-1.5 py-1 rounded-lg text-xs group/post"
-                          style={{ background: `${COR_TIPO[p.formato] || '#7c7bfa'}15`, border: `1px solid ${COR_TIPO[p.formato] || '#7c7bfa'}30` }}>
+                        <div
+                          key={p.id}
+                          onClick={() => setPostAberto(p)}
+                          className="flex items-center gap-1.5 px-1.5 py-1 rounded-lg text-xs group/post cursor-pointer"
+                          style={{ background: `${COR_TIPO[p.formato] || '#7c7bfa'}15`, border: `1px solid ${COR_TIPO[p.formato] || '#7c7bfa'}30` }}
+                        >
                           <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: corPlataforma(p.plataforma) }} />
+
+                          <span className="text-[9px]" style={{ color: 'var(--cor-texto-fraco)' }}>
+                            {p.hora_publicacao || '--:--'}
+                          </span>
+
                           <span className="truncate flex-1" style={{ color: 'var(--cor-texto)' }}>
                             {p.origem === 'equipa_adpulse' ? '🤖 ' : ''}{p.titulo}
                           </span>
@@ -687,22 +768,22 @@ export default function Calendario() {
                           )}
 
                           <div className="opacity-0 group-hover/post:opacity-100 transition-opacity flex gap-1">
-                            <button onClick={() => setPostAberto(p)} title="Ver conteúdo" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cor-marca)', padding: 0, display: 'flex' }}>
+                            <button onClick={(e) => { e.stopPropagation(); setPostAberto(p) }} title="Ver conteúdo" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cor-marca)', padding: 0, display: 'flex' }}>
                               <Eye size={10} />
                             </button>
 
                             {p.origem === 'posts' && (
                               <>
-                                <button onClick={() => router.push(`/painel/publicar?id=${p.id}`)} title="Publicar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cor-marca)', padding: 0, display: 'flex' }}>
+                                <button onClick={(e) => { e.stopPropagation(); router.push(`/painel/publicar?id=${p.id}`) }} title="Publicar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cor-marca)', padding: 0, display: 'flex' }}>
                                   <Send size={10} />
                                 </button>
-                                <button onClick={() => setModal({ dia, post: p })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cor-texto-muted)', padding: 0, display: 'flex' }}>
+                                <button onClick={(e) => { e.stopPropagation(); setModal({ dia, post: p }) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cor-texto-muted)', padding: 0, display: 'flex' }}>
                                   <Edit3 size={10} />
                                 </button>
                               </>
                             )}
 
-                            <button onClick={() => apagarPost(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cor-erro)', padding: 0, display: 'flex' }}>
+                            <button onClick={(e) => { e.stopPropagation(); apagarPost(p) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cor-erro)', padding: 0, display: 'flex' }}>
                               <Trash2 size={10} />
                             </button>
                           </div>
@@ -750,7 +831,7 @@ export default function Calendario() {
                   <div key={i} className="p-2 border-r last:border-r-0 cursor-pointer group" style={{ borderColor: 'var(--cor-borda)' }} onClick={() => setModal({ dia: d.getDate() })}>
                     <div className="flex flex-col gap-2">
                       {psDia.map(p => (
-                        <div key={p.id} className="p-2 rounded-xl" style={{ background: `${COR_TIPO[p.formato] || '#7c7bfa'}15`, border: `1px solid ${COR_TIPO[p.formato] || '#7c7bfa'}40` }} onClick={e => e.stopPropagation()}>
+                        <div key={p.id} className="p-2 rounded-xl cursor-pointer" style={{ background: `${COR_TIPO[p.formato] || '#7c7bfa'}15`, border: `1px solid ${COR_TIPO[p.formato] || '#7c7bfa'}40` }} onClick={e => { e.stopPropagation(); setPostAberto(p) }}>
                           <p className="text-xs leading-snug truncate mb-1.5" style={{ color: 'var(--cor-texto)' }}>
                             {p.origem === 'equipa_adpulse' ? '🤖 ' : ''}{p.titulo}
                           </p>
@@ -760,21 +841,21 @@ export default function Calendario() {
                           </p>
 
                           <div className="flex items-center gap-1">
-                            <button onClick={() => setPostAberto(p)}
+                            <button onClick={(e) => { e.stopPropagation(); setPostAberto(p) }}
                               className="flex items-center gap-1 text-xs px-1.5 py-1 rounded-lg flex-1 justify-center"
                               style={{ background: 'rgba(124,123,250,0.15)', color: 'var(--cor-marca)', border: 'none', cursor: 'pointer' }}>
                               <Eye size={10} /> Ver
                             </button>
 
                             {p.origem === 'posts' && (
-                              <button onClick={() => router.push(`/painel/publicar?id=${p.id}`)}
+                              <button onClick={(e) => { e.stopPropagation(); router.push(`/painel/publicar?id=${p.id}`) }}
                                 className="flex items-center gap-1 text-xs px-1.5 py-1 rounded-lg flex-1 justify-center"
                                 style={{ background: 'rgba(124,123,250,0.15)', color: 'var(--cor-marca)', border: 'none', cursor: 'pointer' }}>
                                 <Send size={10} /> Publicar
                               </button>
                             )}
 
-                            <button onClick={() => apagarPost(p)} className="p-1 rounded-lg" style={{ background: 'rgba(248,113,113,0.1)', color: 'var(--cor-erro)', border: 'none', cursor: 'pointer' }}>
+                            <button onClick={(e) => { e.stopPropagation(); apagarPost(p) }} className="p-1 rounded-lg" style={{ background: 'rgba(248,113,113,0.1)', color: 'var(--cor-erro)', border: 'none', cursor: 'pointer' }}>
                               <Trash2 size={10} />
                             </button>
                           </div>
@@ -795,7 +876,7 @@ export default function Calendario() {
         )}
 
         <div className="mt-6 card">
-          <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
             <div>
               <h3 className="font-semibold" style={{ fontFamily: 'var(--fonte-display)' }}>
                 📋 Planeamento do mês
@@ -804,18 +885,43 @@ export default function Calendario() {
                 Lista operacional com tudo o que está planeado, incluindo conteúdos da Equipa AdPulse.
               </p>
             </div>
+
             <span className="text-xs px-2 py-1 rounded-lg" style={{ background: 'rgba(124,123,250,0.12)', color: 'var(--cor-marca)' }}>
-              {postsPlaneadosMes.length} itens
+              {postsPlaneadosFiltrados.length} itens
             </span>
           </div>
 
-          {postsPlaneadosMes.length === 0 ? (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {[
+              { id: 'todos', label: 'Todos' },
+              { id: 'agendado', label: 'Agendados' },
+              { id: 'publicado', label: 'Publicados' },
+              { id: 'equipa', label: 'Equipa IA' },
+              { id: 'manual', label: 'Posts manuais' },
+            ].map(f => (
+              <button
+                key={f.id}
+                onClick={() => setFiltro(f.id as FiltroPlaneamento)}
+                className="px-3 py-1.5 rounded-xl text-xs font-medium"
+                style={{
+                  background: filtro === f.id ? 'var(--cor-marca)' : 'var(--cor-elevado)',
+                  color: filtro === f.id ? '#fff' : 'var(--cor-texto-muted)',
+                  border: `1px solid ${filtro === f.id ? 'var(--cor-marca)' : 'var(--cor-borda)'}`,
+                  cursor: 'pointer',
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {postsPlaneadosFiltrados.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--cor-texto-muted)' }}>
-              Ainda não tens publicações planeadas para este mês.
+              Ainda não tens publicações neste filtro.
             </p>
           ) : (
             <div className="flex flex-col gap-2">
-              {postsPlaneadosMes.map(p => (
+              {postsPlaneadosFiltrados.map(p => (
                 <div
                   key={p.id}
                   className="flex flex-wrap items-center gap-3 rounded-xl px-3 py-3"
@@ -877,6 +983,18 @@ export default function Calendario() {
                     Copiar
                   </button>
 
+                  {p.estado !== 'publicado' && (
+                    <button
+                      onClick={() => publicarAgora(p)}
+                      disabled={publicandoId === p.id}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+                      style={{ background: '#3b82f6', color: '#fff', border: '1px solid #3b82f6', cursor: publicandoId === p.id ? 'not-allowed' : 'pointer', opacity: publicandoId === p.id ? 0.7 : 1 }}
+                    >
+                      <Rocket size={12} />
+                      {publicandoId === p.id ? 'A publicar...' : 'Publicar agora'}
+                    </button>
+                  )}
+
                   <button
                     onClick={() => apagarPost(p)}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium"
@@ -923,6 +1041,7 @@ export default function Calendario() {
           post={postAberto}
           onFechar={() => setPostAberto(null)}
           onCopiar={copiarPost}
+          onPublicar={publicarAgora}
         />
       )}
     </>
