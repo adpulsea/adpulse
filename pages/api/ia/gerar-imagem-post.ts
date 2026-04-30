@@ -1,10 +1,29 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+)
 
 function safeText(value: any, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback
 }
 
+function slugify(texto: string) {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '')
+    .slice(0, 60)
+}
+
 function criarSvgFallback(titulo: string, subtitulo: string) {
+  const safeTitulo = titulo.replace(/&/g, '&amp;').slice(0, 32)
+  const safeSub = subtitulo.replace(/&/g, '&amp;').slice(0, 240)
+
   const svg = `
   <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
     <rect width="1024" height="1024" rx="40" fill="#090B14"/>
@@ -27,30 +46,51 @@ function criarSvgFallback(titulo: string, subtitulo: string) {
       AdPulse
     </text>
 
-    <text x="90" y="250" fill="white" font-family="Arial, sans-serif" font-size="72" font-weight="800">
-      ${titulo.replace(/&/g, '&amp;').slice(0, 28)}
+    <text x="90" y="250" fill="white" font-family="Arial, sans-serif" font-size="66" font-weight="800">
+      ${safeTitulo}
     </text>
 
-    <foreignObject x="90" y="310" width="820" height="360">
+    <foreignObject x="90" y="320" width="820" height="340">
       <div xmlns="http://www.w3.org/1999/xhtml" style="
         color:#E5E7EB;
         font-family: Arial, sans-serif;
-        font-size:34px;
+        font-size:32px;
         line-height:1.35;
         font-weight:600;
       ">
-        ${subtitulo.replace(/&/g, '&amp;').slice(0, 220)}
+        ${safeSub}
       </div>
     </foreignObject>
 
-    <rect x="90" y="820" width="290" height="74" rx="18" fill="#7C7BFA"/>
-    <text x="135" y="868" fill="white" font-family="Arial, sans-serif" font-size="28" font-weight="700">
+    <rect x="90" y="820" width="300" height="74" rx="18" fill="#7C7BFA"/>
+    <text x="128" y="868" fill="white" font-family="Arial, sans-serif" font-size="28" font-weight="700">
       Experimenta a AdPulse
     </text>
   </svg>
   `.trim()
 
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
+  return Buffer.from(svg)
+}
+
+async function guardarNoSupabase(buffer: Buffer, filename: string, contentType: string) {
+  const bucket = 'adpulse-posts'
+
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from(bucket)
+    .upload(filename, buffer, {
+      contentType,
+      upsert: true,
+    })
+
+  if (uploadError) {
+    throw uploadError
+  }
+
+  const { data } = supabaseAdmin.storage
+    .from(bucket)
+    .getPublicUrl(filename)
+
+  return data.publicUrl
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -81,9 +121,6 @@ Estilo visual:
 - tipografia forte
 - layout pronto para redes sociais
 
-Objetivo do criativo:
-Promover este conteúdo da AdPulse com aparência premium e comercial.
-
 Título principal:
 "${textoCriativo}"
 
@@ -104,60 +141,54 @@ Incluir visualmente:
 - estética compatível com Instagram
 `.trim()
 
-  if (!apiKey) {
-    return res.status(200).json({
-      imagem: criarSvgFallback(textoCriativo, legenda || conteudo || 'Criativo gerado em modo fallback.'),
-      modo: 'fallback',
-      prompt_usado: promptFinal,
-    })
-  }
-
   try {
-    const openaiResp = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-image-1',
-        size: '1024x1024',
-        prompt: promptFinal,
-      }),
-    })
+    let buffer: Buffer
+    let contentType = 'image/png'
+    let modo = 'openai'
 
-    const data = await openaiResp.json()
-
-    if (!openaiResp.ok) {
-      return res.status(200).json({
-        imagem: criarSvgFallback(textoCriativo, legenda || conteudo || 'Imagem fallback.'),
-        modo: 'fallback',
-        detalhe: data,
-        prompt_usado: promptFinal,
+    if (!apiKey) {
+      buffer = criarSvgFallback(textoCriativo, legenda || conteudo || 'Criativo gerado pela AdPulse.')
+      contentType = 'image/svg+xml'
+      modo = 'fallback'
+    } else {
+      const openaiResp = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-image-1',
+          size: '1024x1024',
+          prompt: promptFinal,
+        }),
       })
+
+      const data = await openaiResp.json()
+
+      if (!openaiResp.ok || !data?.data?.[0]?.b64_json) {
+        buffer = criarSvgFallback(textoCriativo, legenda || conteudo || 'Criativo gerado pela AdPulse.')
+        contentType = 'image/svg+xml'
+        modo = 'fallback'
+      } else {
+        buffer = Buffer.from(data.data[0].b64_json, 'base64')
+      }
     }
 
-    const b64 = data?.data?.[0]?.b64_json
+    const extensao = contentType === 'image/svg+xml' ? 'svg' : 'png'
+    const filename = `posts/${Date.now()}-${slugify(titulo || textoCriativo)}.${extensao}`
 
-    if (!b64) {
-      return res.status(200).json({
-        imagem: criarSvgFallback(textoCriativo, legenda || conteudo || 'Imagem fallback.'),
-        modo: 'fallback',
-        prompt_usado: promptFinal,
-      })
-    }
+    const publicUrl = await guardarNoSupabase(buffer, filename, contentType)
 
     return res.status(200).json({
-      imagem: `data:image/png;base64,${b64}`,
-      modo: 'openai',
+      imagem: publicUrl,
+      imagem_url: publicUrl,
+      modo,
       prompt_usado: promptFinal,
     })
   } catch (error: any) {
-    return res.status(200).json({
-      imagem: criarSvgFallback(textoCriativo, legenda || conteudo || 'Imagem fallback.'),
-      modo: 'fallback',
-      detalhe: error?.message || 'Erro ao gerar imagem.',
-      prompt_usado: promptFinal,
+    return res.status(500).json({
+      error: error?.message || 'Erro ao gerar e guardar imagem.',
     })
   }
 }
