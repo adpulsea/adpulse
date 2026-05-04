@@ -433,7 +433,7 @@ ${t.prompt_imagem || '-'}`
         <title>Equipa AdPulse — GOD MODE</title>
       </Head>
 
-      <LayoutPainel titulo="Equipa AdPulse — Conteúdo com IA 🚀">
+      <LayoutPainel titulo="TESTE AGENTES NOVO 123 🚨">
         <div style={{ maxWidth: 1250, margin: '0 auto' }}>
           <div
             style={{
