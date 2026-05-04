@@ -119,7 +119,7 @@ export default function AgentesIA() {
 
   const mostrarMensagem = (texto: string) => {
     setMensagem(texto)
-    setTimeout(() => setMensagem(''), 3500)
+    setTimeout(() => setMensagem(''), 4500)
   }
 
   const criarPlaceholderRapido = (): Tarefa => ({
@@ -292,6 +292,8 @@ export default function AgentesIA() {
           prompt_imagem: tarefa.prompt_imagem,
           plataforma: tarefa.plataforma || plataforma,
           formato: tarefa.formato || 'Post',
+          nicho,
+          objetivo,
         }),
       })
 
@@ -312,7 +314,7 @@ export default function AgentesIA() {
         [tarefa.id]: imagem,
       }))
 
-      mostrarMensagem('Imagem criada e guardada com URL pública.')
+      mostrarMensagem('Imagem relacionada criada e guardada com URL pública.')
     } catch (e: any) {
       alert(e?.message || 'Erro ao gerar imagem.')
     } finally {
@@ -325,12 +327,6 @@ export default function AgentesIA() {
 
     setGuardando(tarefa.id)
 
-    if (!imagens[tarefa.id]) {
-      setGuardando(null)
-      alert('Gera primeiro a imagem antes de guardar no calendário.')
-      return
-    }
-
     try {
       const {
         data: { session },
@@ -342,6 +338,8 @@ export default function AgentesIA() {
         throw new Error('Sessão não encontrada. Faz login novamente.')
       }
 
+      const temImagem = !!imagens[tarefa.id]
+
       const { error } = await supabase.from('posts').insert({
         utilizador_id: utilizadorId,
         titulo: tarefa.titulo,
@@ -352,13 +350,17 @@ export default function AgentesIA() {
         formato: tarefa.formato || 'Post',
         estado: 'agendado',
         hora_publicacao: horaValida(tarefa.hora_sugerida),
-        imagem_url: imagens[tarefa.id],
+        imagem_url: temImagem ? imagens[tarefa.id] : null,
         criado_em: dataComHora(tarefa.hora_sugerida),
       })
 
       if (error) throw error
 
-      mostrarMensagem('Conteúdo com imagem guardado no calendário.')
+      if (temImagem) {
+        mostrarMensagem('Conteúdo com imagem guardado no calendário.')
+      } else {
+        mostrarMensagem('Conteúdo guardado no calendário sem imagem. Para publicar automaticamente no Instagram, gera uma imagem primeiro.')
+      }
     } catch (e: any) {
       alert(e?.message || 'Erro ao guardar no calendário.')
     } finally {
@@ -386,7 +388,7 @@ PROMPT DE IMAGEM:
 ${limparTexto(tarefa.prompt_imagem || '')}
 
 IMAGEM:
-${imagens[tarefa.id] || 'Ainda sem imagem gerada.'}`
+${imagens[tarefa.id] || 'Sem imagem.'}`
 
     await navigator.clipboard.writeText(texto)
     setCopiado(tarefa.id)
@@ -414,22 +416,14 @@ ${imagens[tarefa.id] || 'Ainda sem imagem gerada.'}`
 
       <LayoutPainel titulo="Equipa AdPulse — POST RÁPIDO ATIVO ⚡">
         <div style={{ maxWidth: 1250, margin: '0 auto' }}>
-          <div
-            style={{
-              border: '1px solid rgba(124,123,250,0.35)',
-              borderRadius: 18,
-              padding: 20,
-              background: 'linear-gradient(180deg, rgba(124,123,250,0.13), rgba(10,10,15,0.95))',
-              marginBottom: 20,
-            }}
-          >
+          <div style={heroStyle}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 22, marginBottom: 6 }}>
                   ⚡ AdPulse — Criador de Conteúdo Rápido
                 </div>
                 <div style={{ opacity: 0.75, fontSize: 14 }}>
-                  Gera posts rápidos em segundos ou campanhas completas com a equipa GOD MODE.
+                  Gera posts rápidos, guarda sem imagem ou cria uma imagem IA relacionada com o texto.
                 </div>
               </div>
 
@@ -437,16 +431,7 @@ ${imagens[tarefa.id] || 'Ainda sem imagem gerada.'}`
                 <button
                   onClick={gerarPostRapido}
                   disabled={loadingRapido || loadingGod}
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 10,
-                    border: 'none',
-                    background: '#f59e0b',
-                    color: '#fff',
-                    fontWeight: 800,
-                    cursor: loadingRapido || loadingGod ? 'not-allowed' : 'pointer',
-                    opacity: loadingRapido || loadingGod ? 0.7 : 1,
-                  }}
+                  style={buttonStyle('#f59e0b', loadingRapido || loadingGod)}
                 >
                   {loadingRapido ? '⚡ A criar...' : '⚡ Gerar post rápido'}
                 </button>
@@ -454,16 +439,7 @@ ${imagens[tarefa.id] || 'Ainda sem imagem gerada.'}`
                 <button
                   onClick={gerarCampanhaGodMode}
                   disabled={loadingRapido || loadingGod}
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 10,
-                    border: 'none',
-                    background: '#7c7bfa',
-                    color: '#fff',
-                    fontWeight: 800,
-                    cursor: loadingRapido || loadingGod ? 'not-allowed' : 'pointer',
-                    opacity: loadingRapido || loadingGod ? 0.7 : 1,
-                  }}
+                  style={buttonStyle('#7c7bfa', loadingRapido || loadingGod)}
                 >
                   {loadingGod ? '🤖 Equipa a trabalhar...' : '🚀 Gerar campanha GOD MODE'}
                 </button>
@@ -471,61 +447,26 @@ ${imagens[tarefa.id] || 'Ainda sem imagem gerada.'}`
                 <button
                   onClick={copiarTudo}
                   disabled={!tarefas.length}
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 10,
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    background: '#151523',
-                    color: '#fff',
-                    fontWeight: 700,
-                    cursor: tarefas.length ? 'pointer' : 'not-allowed',
-                    opacity: tarefas.length ? 1 : 0.5,
-                  }}
+                  style={buttonStyle('#151523', !tarefas.length)}
                 >
                   📋 Copiar tudo
                 </button>
 
-                <button
-                  onClick={abrirInstagram}
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 10,
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    background: '#151523',
-                    color: '#fff',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
+                <button onClick={abrirInstagram} style={buttonStyle('#151523')}>
                   📱 Abrir Instagram
                 </button>
               </div>
             </div>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: 12,
-                marginTop: 18,
-              }}
-            >
+            <div style={inputGridStyle}>
               <div>
-                <div style={{ fontSize: 12, opacity: 0.65, marginBottom: 6 }}>Nicho</div>
-                <input
-                  value={nicho}
-                  onChange={(e) => setNicho(e.target.value)}
-                  style={inputStyle}
-                />
+                <div style={labelStyle}>Nicho</div>
+                <input value={nicho} onChange={(e) => setNicho(e.target.value)} style={inputStyle} />
               </div>
 
               <div>
-                <div style={{ fontSize: 12, opacity: 0.65, marginBottom: 6 }}>Plataforma</div>
-                <select
-                  value={plataforma}
-                  onChange={(e) => setPlataforma(e.target.value)}
-                  style={inputStyle}
-                >
+                <div style={labelStyle}>Plataforma</div>
+                <select value={plataforma} onChange={(e) => setPlataforma(e.target.value)} style={inputStyle}>
                   <option value="instagram">Instagram</option>
                   <option value="tiktok">TikTok</option>
                   <option value="youtube">YouTube</option>
@@ -534,24 +475,12 @@ ${imagens[tarefa.id] || 'Ainda sem imagem gerada.'}`
               </div>
 
               <div>
-                <div style={{ fontSize: 12, opacity: 0.65, marginBottom: 6 }}>Objetivo</div>
-                <input
-                  value={objetivo}
-                  onChange={(e) => setObjetivo(e.target.value)}
-                  style={inputStyle}
-                />
+                <div style={labelStyle}>Objetivo</div>
+                <input value={objetivo} onChange={(e) => setObjetivo(e.target.value)} style={inputStyle} />
               </div>
             </div>
 
-            <div
-              style={{
-                height: 6,
-                borderRadius: 999,
-                background: 'rgba(255,255,255,0.08)',
-                marginTop: 18,
-                overflow: 'hidden',
-              }}
-            >
+            <div style={progressTrackStyle}>
               <div
                 style={{
                   width: loadingRapido || loadingGod ? '45%' : tarefas.length ? '100%' : '0%',
@@ -563,31 +492,13 @@ ${imagens[tarefa.id] || 'Ainda sem imagem gerada.'}`
             </div>
           </div>
 
-          {mensagem && (
-            <div style={successStyle}>
-              {mensagem}
-            </div>
-          )}
+          {mensagem && <div style={successStyle}>{mensagem}</div>}
+          {erro && <div style={errorStyle}>{erro}</div>}
 
-          {erro && (
-            <div style={errorStyle}>
-              {erro}
-            </div>
-          )}
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
-              gap: 14,
-              marginBottom: 24,
-            }}
-          >
+          <div style={agentsGridStyle}>
             {AGENTES.map((agente) => {
               const tarefa = tarefas.find((t) => t.agente_id === agente.id)
-              const ativo =
-                (loadingRapido && agente.id === 'post_rapido') ||
-                (loadingGod && agente.id !== 'post_rapido')
+              const ativo = (loadingRapido && agente.id === 'post_rapido') || (loadingGod && agente.id !== 'post_rapido')
 
               return (
                 <div
@@ -596,10 +507,7 @@ ${imagens[tarefa.id] || 'Ainda sem imagem gerada.'}`
                     borderRadius: 16,
                     padding: 16,
                     border: `1px solid ${corFase(agente.fase)}55`,
-                    background:
-                      agente.id === 'post_rapido'
-                        ? 'rgba(50,38,10,0.85)'
-                        : 'rgba(10,18,16,0.85)',
+                    background: agente.id === 'post_rapido' ? 'rgba(50,38,10,0.85)' : 'rgba(10,18,16,0.85)',
                   }}
                 >
                   <div style={{ fontSize: 22, marginBottom: 8 }}>{agente.emoji}</div>
@@ -622,7 +530,6 @@ ${imagens[tarefa.id] || 'Ainda sem imagem gerada.'}`
 
           {FASES.map((fase) => {
             const lista = tarefas.filter((t) => t.fase === fase)
-
             if (!lista.length) return null
 
             return (
@@ -632,92 +539,99 @@ ${imagens[tarefa.id] || 'Ainda sem imagem gerada.'}`
                 </h2>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {lista.map((tarefa) => (
-                    <div key={tarefa.id} style={cardStyle}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                        <div>
-                          <div style={{ fontWeight: 800, fontSize: 17 }}>
-                            {tarefa.agente_nome} — {tarefa.agente_cargo}
+                  {lista.map((tarefa) => {
+                    const temImagem = !!imagens[tarefa.id]
+
+                    return (
+                      <div key={tarefa.id} style={cardStyle}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: 17 }}>
+                              {tarefa.agente_nome} — {tarefa.agente_cargo}
+                            </div>
+                            <div style={{ fontSize: 12, opacity: 0.65, marginTop: 4 }}>
+                              {tarefa.fase} • {tarefa.titulo}
+                            </div>
                           </div>
-                          <div style={{ fontSize: 12, opacity: 0.65, marginTop: 4 }}>
-                            {tarefa.fase} • {tarefa.titulo}
-                          </div>
-                        </div>
 
-                        <div style={statusStyle(tarefa.estado)}>
-                          {tarefa.estado === 'concluido' ? '✅ Concluído' : '⏳ A trabalhar'}
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                          gap: 12,
-                          marginTop: 16,
-                          marginBottom: 14,
-                        }}
-                      >
-                        <InfoBox label="Formato" value={tarefa.formato || 'Post'} />
-                        <InfoBox label="Plataforma" value={tarefa.plataforma || plataforma} />
-                        <InfoBox label="Hora sugerida" value={tarefa.hora_sugerida || '16:25'} />
-                      </div>
-
-                      <ContentBox label="Conteúdo completo" value={tarefa.conteudo} />
-                      <ContentBox label="Legenda pronta" value={tarefa.legenda || 'Sem legenda específica.'} />
-                      <ContentBox label="Texto do criativo" value={tarefa.texto_criativo || 'Sem texto específico.'} />
-                      <ContentBox label="Hashtags" value={tarefa.hashtags || '#adpulse #marketingdigital'} />
-                      <ContentBox label="CTA" value={tarefa.cta || 'Experimenta a AdPulse.'} />
-                      <ContentBox label="Prompt de imagem" value={tarefa.prompt_imagem || 'Criar criativo moderno dark mode para redes sociais.'} />
-
-                      {imagens[tarefa.id] && (
-                        <div style={imageBoxStyle}>
-                          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>Imagem gerada</div>
-                          <img
-                            src={imagens[tarefa.id]}
-                            alt={tarefa.titulo}
-                            style={{
-                              width: '100%',
-                              maxWidth: 500,
-                              borderRadius: 12,
-                              border: '1px solid rgba(255,255,255,0.08)',
-                              display: 'block',
-                              background: '#050510',
-                            }}
-                          />
-                          <div style={{ fontSize: 11, opacity: 0.65, marginTop: 8, wordBreak: 'break-all' }}>
-                            {imagens[tarefa.id]}
+                          <div style={statusStyle(tarefa.estado)}>
+                            {tarefa.estado === 'concluido' ? '✅ Concluído' : '⏳ A trabalhar'}
                           </div>
                         </div>
-                      )}
 
-                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
-                        <button onClick={() => copiarConteudo(tarefa)} style={buttonStyle('#151523')}>
-                          {copiado === tarefa.id ? '✅ Copiado' : '📋 Copiar conteúdo'}
-                        </button>
+                        <div style={infoGridStyle}>
+                          <InfoBox label="Formato" value={tarefa.formato || 'Post'} />
+                          <InfoBox label="Plataforma" value={tarefa.plataforma || plataforma} />
+                          <InfoBox label="Hora sugerida" value={tarefa.hora_sugerida || '16:25'} />
+                          <InfoBox label="Imagem" value={temImagem ? 'Gerada' : 'Opcional'} />
+                        </div>
 
-                        <button
-                          onClick={() => gerarImagem(tarefa)}
-                          disabled={gerandoImagem === tarefa.id || tarefa.estado !== 'concluido'}
-                          style={buttonStyle('#7c7bfa', gerandoImagem === tarefa.id || tarefa.estado !== 'concluido')}
-                        >
-                          {gerandoImagem === tarefa.id ? '🎨 A gerar...' : '🎨 Gerar imagem'}
-                        </button>
+                        <ContentBox label="Conteúdo completo" value={tarefa.conteudo} />
+                        <ContentBox label="Legenda pronta" value={tarefa.legenda || 'Sem legenda específica.'} />
+                        <ContentBox label="Texto do criativo" value={tarefa.texto_criativo || 'Sem texto específico.'} />
+                        <ContentBox label="Hashtags" value={tarefa.hashtags || '#adpulse #marketingdigital'} />
+                        <ContentBox label="CTA" value={tarefa.cta || 'Experimenta a AdPulse.'} />
+                        <ContentBox label="Prompt de imagem" value={tarefa.prompt_imagem || 'Criar imagem relacionada com o conteúdo, sem texto escrito na imagem.'} />
 
-                        <button
-                          onClick={() => guardarNoCalendario(tarefa)}
-                          disabled={guardando === tarefa.id || tarefa.estado !== 'concluido' || !imagens[tarefa.id]}
-                          style={buttonStyle('#14b8a6', guardando === tarefa.id || tarefa.estado !== 'concluido' || !imagens[tarefa.id])}
-                        >
-                          {guardando === tarefa.id ? '💾 A guardar...' : imagens[tarefa.id] ? '💾 Guardar no calendário' : '💾 Gera imagem primeiro'}
-                        </button>
+                        {temImagem && (
+                          <div style={imageBoxStyle}>
+                            <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>Imagem IA relacionada</div>
+                            <img
+                              src={imagens[tarefa.id]}
+                              alt={tarefa.titulo}
+                              style={{
+                                width: '100%',
+                                maxWidth: 500,
+                                borderRadius: 12,
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                display: 'block',
+                                background: '#050510',
+                              }}
+                            />
+                            <div style={{ fontSize: 11, opacity: 0.65, marginTop: 8, wordBreak: 'break-all' }}>
+                              {imagens[tarefa.id]}
+                            </div>
+                          </div>
+                        )}
 
-                        <button onClick={abrirInstagram} style={buttonStyle('#151523')}>
-                          📱 Ir ao Instagram
-                        </button>
+                        {!temImagem && (
+                          <div style={warningStyle}>
+                            Podes guardar este conteúdo sem imagem. Para publicação automática no Instagram, vais precisar de gerar imagem antes.
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
+                          <button onClick={() => copiarConteudo(tarefa)} style={buttonStyle('#151523')}>
+                            {copiado === tarefa.id ? '✅ Copiado' : '📋 Copiar conteúdo'}
+                          </button>
+
+                          <button
+                            onClick={() => gerarImagem(tarefa)}
+                            disabled={gerandoImagem === tarefa.id || tarefa.estado !== 'concluido'}
+                            style={buttonStyle('#7c7bfa', gerandoImagem === tarefa.id || tarefa.estado !== 'concluido')}
+                          >
+                            {gerandoImagem === tarefa.id ? '🎨 A gerar...' : '🎨 Gerar imagem IA'}
+                          </button>
+
+                          <button
+                            onClick={() => guardarNoCalendario(tarefa)}
+                            disabled={guardando === tarefa.id || tarefa.estado !== 'concluido'}
+                            style={buttonStyle(temImagem ? '#14b8a6' : '#334155', guardando === tarefa.id || tarefa.estado !== 'concluido')}
+                          >
+                            {guardando === tarefa.id
+                              ? '💾 A guardar...'
+                              : temImagem
+                                ? '💾 Guardar com imagem'
+                                : '💾 Guardar sem imagem'}
+                          </button>
+
+                          <button onClick={abrirInstagram} style={buttonStyle('#151523')}>
+                            📱 Ir ao Instagram
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -752,7 +666,7 @@ function buttonStyle(background: string, disabled = false): CSSProperties {
   return {
     padding: '10px 14px',
     borderRadius: 10,
-    border: background === '#151523' ? '1px solid rgba(255,255,255,0.10)' : 'none',
+    border: background === '#151523' || background === '#334155' ? '1px solid rgba(255,255,255,0.10)' : 'none',
     background,
     color: '#fff',
     cursor: disabled ? 'not-allowed' : 'pointer',
@@ -774,6 +688,27 @@ function statusStyle(estado: string): CSSProperties {
   }
 }
 
+const heroStyle: CSSProperties = {
+  border: '1px solid rgba(124,123,250,0.35)',
+  borderRadius: 18,
+  padding: 20,
+  background: 'linear-gradient(180deg, rgba(124,123,250,0.13), rgba(10,10,15,0.95))',
+  marginBottom: 20,
+}
+
+const inputGridStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+  gap: 12,
+  marginTop: 18,
+}
+
+const labelStyle: CSSProperties = {
+  fontSize: 12,
+  opacity: 0.65,
+  marginBottom: 6,
+}
+
 const inputStyle: CSSProperties = {
   width: '100%',
   padding: 12,
@@ -782,6 +717,14 @@ const inputStyle: CSSProperties = {
   background: '#10101a',
   color: '#fff',
   outline: 'none',
+}
+
+const progressTrackStyle: CSSProperties = {
+  height: 6,
+  borderRadius: 999,
+  background: 'rgba(255,255,255,0.08)',
+  marginTop: 18,
+  overflow: 'hidden',
 }
 
 const successStyle: CSSProperties = {
@@ -804,11 +747,36 @@ const errorStyle: CSSProperties = {
   fontSize: 14,
 }
 
+const warningStyle: CSSProperties = {
+  marginTop: 14,
+  padding: 14,
+  borderRadius: 12,
+  background: 'rgba(245,158,11,0.10)',
+  border: '1px solid rgba(245,158,11,0.28)',
+  color: '#fbbf24',
+  fontSize: 13,
+}
+
+const agentsGridStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+  gap: 14,
+  marginBottom: 24,
+}
+
 const cardStyle: CSSProperties = {
   borderRadius: 16,
   border: '1px solid rgba(255,255,255,0.10)',
   background: '#0e0f17',
   padding: 18,
+}
+
+const infoGridStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+  gap: 12,
+  marginTop: 16,
+  marginBottom: 14,
 }
 
 const infoBoxStyle: CSSProperties = {
