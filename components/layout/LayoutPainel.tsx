@@ -54,6 +54,7 @@ const ITENS_NAV = [
 ]
 
 const COR_PLANO: Record<string, string> = {
+  free: 'var(--cor-marca)',
   gratuito: 'var(--cor-marca)',
   pro: '#fbbf24',
   agencia: '#c084fc',
@@ -67,10 +68,10 @@ type Props = {
 export default function LayoutPainel({ children, titulo }: Props) {
   const { utilizador } = useAuth()
   const router = useRouter()
+
   const [sidebarAberta, setSidebarAberta] = useState(false)
-  const [plano, setPlano] = useState('gratuito')
-  const [planoEstado, setPlanoEstado] = useState('ativo')
-  const [planoRenovaEm, setPlanoRenovaEm] = useState<string | null>(null)
+  const [plano, setPlano] = useState('free')
+  const [estadoAssinatura, setEstadoAssinatura] = useState('free')
   const [aProcessarPlano, setAProcessarPlano] = useState(false)
 
   useEffect(() => {
@@ -79,67 +80,102 @@ export default function LayoutPainel({ children, titulo }: Props) {
     const carregarPlano = async () => {
       const { data } = await supabase
         .from('perfis')
-        .select('plano, plano_estado, plano_renova_em')
+        .select('plano, estado_assinatura, plano_atualizado_em')
         .eq('id', utilizador.id)
         .single()
 
-      if (data?.plano) setPlano(data.plano)
-      if (data?.plano_estado) setPlanoEstado(data.plano_estado)
-      if (data?.plano_renova_em) setPlanoRenovaEm(data.plano_renova_em)
+      if (data?.plano) {
+        setPlano(data.plano)
+      }
+
+      if (data?.estado_assinatura) {
+        setEstadoAssinatura(data.estado_assinatura)
+      }
     }
 
     carregarPlano()
   }, [utilizador])
 
   const iniciarCheckout = async (planoEscolhido: 'pro' | 'agencia') => {
-    if (!utilizador?.email || !utilizador?.id) return
-
     setAProcessarPlano(true)
 
     try {
-      const res = await fetch('/api/stripe/checkout', {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session?.access_token) {
+        router.push('/auth/login?redirect=/precos')
+        return
+      }
+
+      const res = await fetch('/api/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           plano: planoEscolhido,
-          email: utilizador.email,
-          utilizadorId: utilizador.id,
         }),
       })
 
       const data = await res.json()
 
-      if (data.url) {
-        window.location.href = data.url
+      if (!res.ok) {
+        alert(data?.erro || data?.error || 'Erro ao abrir checkout.')
+        return
       }
-    } catch (error) {
+
+      if (data?.url) {
+        window.location.href = data.url
+      } else {
+        alert('A Stripe não devolveu o link de pagamento.')
+      }
+    } catch (error: any) {
       console.error('Erro ao abrir checkout:', error)
+      alert(error?.message || 'Erro ao abrir checkout.')
     } finally {
       setAProcessarPlano(false)
     }
   }
 
   const abrirPortalStripe = async () => {
-    if (!utilizador?.id) return
-
     setAProcessarPlano(true)
 
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session?.access_token) {
+        router.push('/auth/login?redirect=/painel/gerir-plano')
+        return
+      }
+
       const res = await fetch('/api/stripe/portal', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          utilizadorId: utilizador.id,
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
       })
 
       const data = await res.json()
 
-      if (data.url) {
-        window.location.href = data.url
+      if (!res.ok) {
+        alert(data?.erro || data?.error || 'Erro ao abrir gestão do plano.')
+        return
       }
-    } catch (error) {
+
+      if (data?.url) {
+        window.location.href = data.url
+      } else {
+        router.push('/painel/gerir-plano')
+      }
+    } catch (error: any) {
       console.error('Erro ao abrir portal Stripe:', error)
+      alert(error?.message || 'Erro ao abrir portal Stripe.')
     } finally {
       setAProcessarPlano(false)
     }
@@ -157,16 +193,25 @@ export default function LayoutPainel({ children, titulo }: Props) {
 
   const iniciais = nomeUtilizador.slice(0, 2).toUpperCase()
 
+  const planoNormalizado = plano === 'gratuito' ? 'free' : plano
+
+  const nomePlano =
+    planoNormalizado === 'free'
+      ? 'Gratuito'
+      : planoNormalizado === 'pro'
+        ? 'Pro'
+        : planoNormalizado === 'agencia'
+          ? 'Agência'
+          : planoNormalizado
+
   const textoPlano =
-    plano === 'gratuito'
+    planoNormalizado === 'free'
       ? '3 gerações/dia'
-      : plano === 'pro'
+      : planoNormalizado === 'pro'
         ? 'Gerações ilimitadas'
         : 'Multi-cliente'
 
-  const textoRenovacao = planoRenovaEm
-    ? new Date(planoRenovaEm).toLocaleDateString('pt-PT')
-    : null
+  const corPlano = COR_PLANO[planoNormalizado] || COR_PLANO.free
 
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--cor-fundo)' }}>
@@ -277,36 +322,30 @@ export default function LayoutPainel({ children, titulo }: Props) {
           <div
             className="mb-4 px-3 py-3 rounded-xl"
             style={{
-              background: `${COR_PLANO[plano] || COR_PLANO.gratuito}12`,
-              border: `1px solid ${COR_PLANO[plano] || COR_PLANO.gratuito}25`,
+              background: `${corPlano}12`,
+              border: `1px solid ${corPlano}25`,
             }}
           >
             <div className="mb-3">
               <p
-                className="text-xs font-medium capitalize"
-                style={{ color: COR_PLANO[plano] || COR_PLANO.gratuito }}
+                className="text-xs font-medium"
+                style={{ color: corPlano }}
               >
-                Plano {plano.charAt(0).toUpperCase() + plano.slice(1)}
+                Plano {nomePlano}
               </p>
 
               <p className="text-xs" style={{ color: 'var(--cor-texto-fraco)' }}>
                 {textoPlano}
               </p>
 
-              {plano !== 'gratuito' && (
+              {planoNormalizado !== 'free' && (
                 <p className="text-xs mt-1" style={{ color: 'var(--cor-texto-fraco)' }}>
-                  Estado: {planoEstado || 'ativo'}
-                </p>
-              )}
-
-              {plano !== 'gratuito' && textoRenovacao && (
-                <p className="text-xs mt-1" style={{ color: 'var(--cor-texto-fraco)' }}>
-                  Renova em: {textoRenovacao}
+                  Estado: {estadoAssinatura || 'active'}
                 </p>
               )}
             </div>
 
-            {plano === 'gratuito' && (
+            {planoNormalizado === 'free' && (
               <button
                 onClick={() => iniciarCheckout('pro')}
                 disabled={aProcessarPlano}
@@ -323,7 +362,7 @@ export default function LayoutPainel({ children, titulo }: Props) {
               </button>
             )}
 
-            {plano === 'pro' && (
+            {planoNormalizado === 'pro' && (
               <div className="flex flex-col gap-2">
                 <button
                   onClick={() => iniciarCheckout('agencia')}
@@ -352,12 +391,12 @@ export default function LayoutPainel({ children, titulo }: Props) {
                     opacity: aProcessarPlano ? 0.7 : 1,
                   }}
                 >
-                  Gerir plano
+                  {aProcessarPlano ? 'A abrir...' : 'Gerir plano'}
                 </button>
               </div>
             )}
 
-            {plano === 'agencia' && (
+            {planoNormalizado === 'agencia' && (
               <button
                 onClick={abrirPortalStripe}
                 disabled={aProcessarPlano}
