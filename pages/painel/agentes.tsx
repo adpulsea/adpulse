@@ -1,5 +1,6 @@
 import Head from 'next/head'
 import { useState } from 'react'
+import type { CSSProperties } from 'react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import { supabase } from '@/lib/supabase'
 
@@ -287,6 +288,7 @@ export default function AgentesIA() {
           conteudo: tarefa.conteudo,
           legenda: tarefa.legenda,
           texto_criativo: tarefa.texto_criativo,
+          cta: tarefa.cta,
           prompt_imagem: tarefa.prompt_imagem,
           plataforma: tarefa.plataforma || plataforma,
           formato: tarefa.formato || 'Post',
@@ -323,6 +325,12 @@ export default function AgentesIA() {
 
     setGuardando(tarefa.id)
 
+    if (!imagens[tarefa.id]) {
+      setGuardando(null)
+      alert('Gera primeiro a imagem antes de guardar no calendário.')
+      return
+    }
+
     try {
       const {
         data: { session },
@@ -344,13 +352,13 @@ export default function AgentesIA() {
         formato: tarefa.formato || 'Post',
         estado: 'agendado',
         hora_publicacao: horaValida(tarefa.hora_sugerida),
-        imagem_url: imagens[tarefa.id] || null,
+        imagem_url: imagens[tarefa.id],
         criado_em: dataComHora(tarefa.hora_sugerida),
       })
 
       if (error) throw error
 
-      mostrarMensagem('Conteúdo guardado no calendário.')
+      mostrarMensagem('Conteúdo com imagem guardado no calendário.')
     } catch (e: any) {
       alert(e?.message || 'Erro ao guardar no calendário.')
     } finally {
@@ -375,7 +383,10 @@ CTA:
 ${limparTexto(tarefa.cta || '')}
 
 PROMPT DE IMAGEM:
-${limparTexto(tarefa.prompt_imagem || '')}`
+${limparTexto(tarefa.prompt_imagem || '')}
+
+IMAGEM:
+${imagens[tarefa.id] || 'Ainda sem imagem gerada.'}`
 
     await navigator.clipboard.writeText(texto)
     setCopiado(tarefa.id)
@@ -384,7 +395,7 @@ ${limparTexto(tarefa.prompt_imagem || '')}`
 
   const copiarTudo = async () => {
     const texto = tarefas
-      .map((t) => `${t.agente_nome} — ${t.titulo}\n\n${t.legenda || t.conteudo}\n\n${t.hashtags || ''}`)
+      .map((t) => `${t.agente_nome} — ${t.titulo}\n\n${t.legenda || t.conteudo}\n\n${t.hashtags || ''}\n\nImagem: ${imagens[t.id] || '-'}`)
       .join('\n\n-----------------------\n\n')
 
     await navigator.clipboard.writeText(texto)
@@ -504,15 +515,7 @@ ${limparTexto(tarefa.prompt_imagem || '')}`
                 <input
                   value={nicho}
                   onChange={(e) => setNicho(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: 12,
-                    borderRadius: 10,
-                    border: '1px solid rgba(255,255,255,0.10)',
-                    background: '#10101a',
-                    color: '#fff',
-                    outline: 'none',
-                  }}
+                  style={inputStyle}
                 />
               </div>
 
@@ -521,15 +524,7 @@ ${limparTexto(tarefa.prompt_imagem || '')}`
                 <select
                   value={plataforma}
                   onChange={(e) => setPlataforma(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: 12,
-                    borderRadius: 10,
-                    border: '1px solid rgba(255,255,255,0.10)',
-                    background: '#10101a',
-                    color: '#fff',
-                    outline: 'none',
-                  }}
+                  style={inputStyle}
                 >
                   <option value="instagram">Instagram</option>
                   <option value="tiktok">TikTok</option>
@@ -543,15 +538,7 @@ ${limparTexto(tarefa.prompt_imagem || '')}`
                 <input
                   value={objetivo}
                   onChange={(e) => setObjetivo(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: 12,
-                    borderRadius: 10,
-                    border: '1px solid rgba(255,255,255,0.10)',
-                    background: '#10101a',
-                    color: '#fff',
-                    outline: 'none',
-                  }}
+                  style={inputStyle}
                 />
               </div>
             </div>
@@ -577,33 +564,13 @@ ${limparTexto(tarefa.prompt_imagem || '')}`
           </div>
 
           {mensagem && (
-            <div
-              style={{
-                marginBottom: 18,
-                padding: 14,
-                borderRadius: 12,
-                background: 'rgba(34,197,94,0.10)',
-                border: '1px solid rgba(34,197,94,0.28)',
-                color: '#22c55e',
-                fontSize: 14,
-              }}
-            >
+            <div style={successStyle}>
               {mensagem}
             </div>
           )}
 
           {erro && (
-            <div
-              style={{
-                marginBottom: 18,
-                padding: 14,
-                borderRadius: 12,
-                background: 'rgba(248,113,113,0.10)',
-                border: '1px solid rgba(248,113,113,0.28)',
-                color: '#f87171',
-                fontSize: 14,
-              }}
-            >
+            <div style={errorStyle}>
               {erro}
             </div>
           )}
@@ -666,15 +633,7 @@ ${limparTexto(tarefa.prompt_imagem || '')}`
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {lista.map((tarefa) => (
-                    <div
-                      key={tarefa.id}
-                      style={{
-                        borderRadius: 16,
-                        border: '1px solid rgba(255,255,255,0.10)',
-                        background: '#0e0f17',
-                        padding: 18,
-                      }}
-                    >
+                    <div key={tarefa.id} style={cardStyle}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                         <div>
                           <div style={{ fontWeight: 800, fontSize: 17 }}>
@@ -685,24 +644,7 @@ ${limparTexto(tarefa.prompt_imagem || '')}`
                           </div>
                         </div>
 
-                        <div
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: 999,
-                            background:
-                              tarefa.estado === 'concluido'
-                                ? 'rgba(34,197,94,0.12)'
-                                : 'rgba(245,158,11,0.12)',
-                            border:
-                              tarefa.estado === 'concluido'
-                                ? '1px solid rgba(34,197,94,0.30)'
-                                : '1px solid rgba(245,158,11,0.30)',
-                            color: tarefa.estado === 'concluido' ? '#22c55e' : '#f59e0b',
-                            fontSize: 12,
-                            fontWeight: 800,
-                            height: 'fit-content',
-                          }}
-                        >
+                        <div style={statusStyle(tarefa.estado)}>
                           {tarefa.estado === 'concluido' ? '✅ Concluído' : '⏳ A trabalhar'}
                         </div>
                       </div>
@@ -729,15 +671,7 @@ ${limparTexto(tarefa.prompt_imagem || '')}`
                       <ContentBox label="Prompt de imagem" value={tarefa.prompt_imagem || 'Criar criativo moderno dark mode para redes sociais.'} />
 
                       {imagens[tarefa.id] && (
-                        <div
-                          style={{
-                            marginTop: 14,
-                            padding: 14,
-                            borderRadius: 12,
-                            background: '#111320',
-                            border: '1px solid rgba(255,255,255,0.08)',
-                          }}
-                        >
+                        <div style={imageBoxStyle}>
                           <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>Imagem gerada</div>
                           <img
                             src={imagens[tarefa.id]}
@@ -748,16 +682,17 @@ ${limparTexto(tarefa.prompt_imagem || '')}`
                               borderRadius: 12,
                               border: '1px solid rgba(255,255,255,0.08)',
                               display: 'block',
+                              background: '#050510',
                             }}
                           />
+                          <div style={{ fontSize: 11, opacity: 0.65, marginTop: 8, wordBreak: 'break-all' }}>
+                            {imagens[tarefa.id]}
+                          </div>
                         </div>
                       )}
 
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
-                        <button
-                          onClick={() => copiarConteudo(tarefa)}
-                          style={buttonStyle('#151523')}
-                        >
+                        <button onClick={() => copiarConteudo(tarefa)} style={buttonStyle('#151523')}>
                           {copiado === tarefa.id ? '✅ Copiado' : '📋 Copiar conteúdo'}
                         </button>
 
@@ -771,16 +706,13 @@ ${limparTexto(tarefa.prompt_imagem || '')}`
 
                         <button
                           onClick={() => guardarNoCalendario(tarefa)}
-                          disabled={guardando === tarefa.id || tarefa.estado !== 'concluido'}
-                          style={buttonStyle('#14b8a6', guardando === tarefa.id || tarefa.estado !== 'concluido')}
+                          disabled={guardando === tarefa.id || tarefa.estado !== 'concluido' || !imagens[tarefa.id]}
+                          style={buttonStyle('#14b8a6', guardando === tarefa.id || tarefa.estado !== 'concluido' || !imagens[tarefa.id])}
                         >
-                          {guardando === tarefa.id ? '💾 A guardar...' : '💾 Guardar no calendário'}
+                          {guardando === tarefa.id ? '💾 A guardar...' : imagens[tarefa.id] ? '💾 Guardar no calendário' : '💾 Gera imagem primeiro'}
                         </button>
 
-                        <button
-                          onClick={abrirInstagram}
-                          style={buttonStyle('#151523')}
-                        >
+                        <button onClick={abrirInstagram} style={buttonStyle('#151523')}>
                           📱 Ir ao Instagram
                         </button>
                       </div>
@@ -798,14 +730,7 @@ ${limparTexto(tarefa.prompt_imagem || '')}`
 
 function InfoBox({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      style={{
-        padding: 12,
-        borderRadius: 12,
-        background: '#141624',
-        border: '1px solid rgba(255,255,255,0.06)',
-      }}
-    >
+    <div style={infoBoxStyle}>
       <div style={{ fontSize: 11, opacity: 0.65, marginBottom: 6 }}>{label}</div>
       <div style={{ fontWeight: 700 }}>{value}</div>
     </div>
@@ -814,15 +739,7 @@ function InfoBox({ label, value }: { label: string; value: string }) {
 
 function ContentBox({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      style={{
-        padding: 14,
-        borderRadius: 12,
-        background: '#141624',
-        border: '1px solid rgba(255,255,255,0.06)',
-        marginTop: 12,
-      }}
-    >
+    <div style={contentBoxStyle}>
       <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>{label}</div>
       <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.6 }}>
         {value}
@@ -831,7 +748,7 @@ function ContentBox({ label, value }: { label: string; value: string }) {
   )
 }
 
-function buttonStyle(background: string, disabled = false): React.CSSProperties {
+function buttonStyle(background: string, disabled = false): CSSProperties {
   return {
     padding: '10px 14px',
     borderRadius: 10,
@@ -842,4 +759,77 @@ function buttonStyle(background: string, disabled = false): React.CSSProperties 
     fontWeight: 800,
     opacity: disabled ? 0.6 : 1,
   }
+}
+
+function statusStyle(estado: string): CSSProperties {
+  return {
+    padding: '6px 10px',
+    borderRadius: 999,
+    background: estado === 'concluido' ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)',
+    border: estado === 'concluido' ? '1px solid rgba(34,197,94,0.30)' : '1px solid rgba(245,158,11,0.30)',
+    color: estado === 'concluido' ? '#22c55e' : '#f59e0b',
+    fontSize: 12,
+    fontWeight: 800,
+    height: 'fit-content',
+  }
+}
+
+const inputStyle: CSSProperties = {
+  width: '100%',
+  padding: 12,
+  borderRadius: 10,
+  border: '1px solid rgba(255,255,255,0.10)',
+  background: '#10101a',
+  color: '#fff',
+  outline: 'none',
+}
+
+const successStyle: CSSProperties = {
+  marginBottom: 18,
+  padding: 14,
+  borderRadius: 12,
+  background: 'rgba(34,197,94,0.10)',
+  border: '1px solid rgba(34,197,94,0.28)',
+  color: '#22c55e',
+  fontSize: 14,
+}
+
+const errorStyle: CSSProperties = {
+  marginBottom: 18,
+  padding: 14,
+  borderRadius: 12,
+  background: 'rgba(248,113,113,0.10)',
+  border: '1px solid rgba(248,113,113,0.28)',
+  color: '#f87171',
+  fontSize: 14,
+}
+
+const cardStyle: CSSProperties = {
+  borderRadius: 16,
+  border: '1px solid rgba(255,255,255,0.10)',
+  background: '#0e0f17',
+  padding: 18,
+}
+
+const infoBoxStyle: CSSProperties = {
+  padding: 12,
+  borderRadius: 12,
+  background: '#141624',
+  border: '1px solid rgba(255,255,255,0.06)',
+}
+
+const contentBoxStyle: CSSProperties = {
+  padding: 14,
+  borderRadius: 12,
+  background: '#141624',
+  border: '1px solid rgba(255,255,255,0.06)',
+  marginTop: 12,
+}
+
+const imageBoxStyle: CSSProperties = {
+  marginTop: 14,
+  padding: 14,
+  borderRadius: 12,
+  background: '#111320',
+  border: '1px solid rgba(255,255,255,0.08)',
 }
