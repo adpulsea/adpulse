@@ -1,5 +1,5 @@
 import Head from 'next/head'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import { supabase } from '@/lib/supabase'
 
@@ -22,15 +22,7 @@ type Tarefa = {
   hora_sugerida?: string
 }
 
-type AgenteUI = {
-  id: string
-  nome: string
-  cargo: string
-  fase: string
-  emoji: string
-}
-
-const AGENTES_UI: AgenteUI[] = [
+const AGENTES = [
   { id: 'post_rapido', nome: 'Post Rápido', cargo: 'Criador Instantâneo', fase: 'Criação Rápida', emoji: '⚡' },
   { id: 'explorador', nome: 'Explorador', cargo: 'Chief Intelligence Officer', fase: 'Inteligência', emoji: '🌐' },
   { id: 'rui', nome: 'Rui Ferreira', cargo: 'Research & Tendências', fase: 'Inteligência', emoji: '🔬' },
@@ -47,43 +39,29 @@ const AGENTES_UI: AgenteUI[] = [
   { id: 'antonio', nome: 'António Mendes', cargo: 'Growth Hacker', fase: 'Performance', emoji: '🚀' },
 ]
 
-const FASES = ['Criação Rápida', 'Inteligência', 'Estratégia', 'Criação', 'Qualidade', 'Execução', 'Performance']
+const FASES = [
+  'Criação Rápida',
+  'Inteligência',
+  'Estratégia',
+  'Criação',
+  'Qualidade',
+  'Execução',
+  'Performance',
+]
 
-const corFase = (fase: string) => {
-  switch (fase) {
-    case 'Criação Rápida':
-      return '#f59e0b'
-    case 'Inteligência':
-      return '#22c55e'
-    case 'Estratégia':
-      return '#8b5cf6'
-    case 'Criação':
-      return '#ec4899'
-    case 'Qualidade':
-      return '#f59e0b'
-    case 'Execução':
-      return '#06b6d4'
-    case 'Performance':
-      return '#3b82f6'
-    default:
-      return '#7c7bfa'
-  }
+function corFase(fase: string) {
+  if (fase === 'Criação Rápida') return '#f59e0b'
+  if (fase === 'Inteligência') return '#22c55e'
+  if (fase === 'Estratégia') return '#8b5cf6'
+  if (fase === 'Criação') return '#ec4899'
+  if (fase === 'Qualidade') return '#f59e0b'
+  if (fase === 'Execução') return '#06b6d4'
+  if (fase === 'Performance') return '#3b82f6'
+  return '#7c7bfa'
 }
 
-const corEstado = (estado?: string) => {
-  switch (estado) {
-    case 'concluido':
-      return '#22c55e'
-    case 'a_trabalhar':
-      return '#f59e0b'
-    default:
-      return '#94a3b8'
-  }
-}
-
-function stripMarkdown(texto: string) {
-  if (!texto) return ''
-  return texto
+function limparTexto(texto?: string) {
+  return (texto || '')
     .replace(/[*_`>#-]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
@@ -93,9 +71,9 @@ function hashtagsParaArray(hashtags?: string) {
   if (!hashtags) return []
   return hashtags
     .split(/\s+/)
-    .map(h => h.trim())
+    .map((h) => h.trim())
     .filter(Boolean)
-    .map(h => (h.startsWith('#') ? h : `#${h}`))
+    .map((h) => (h.startsWith('#') ? h : `#${h}`))
 }
 
 function horaValida(hora?: string) {
@@ -103,10 +81,11 @@ function horaValida(hora?: string) {
   return /^\d{2}:\d{2}$/.test(hora) ? hora : '09:00'
 }
 
-function dataComHora(hora: string) {
+function dataComHora(hora?: string) {
   const agora = new Date()
   const [h, m] = horaValida(hora).split(':')
-  const d = new Date(
+
+  const data = new Date(
     agora.getFullYear(),
     agora.getMonth(),
     agora.getDate(),
@@ -116,122 +95,59 @@ function dataComHora(hora: string) {
     0
   )
 
-  if (d.getTime() < agora.getTime()) {
-    d.setDate(d.getDate() + 1)
+  if (data.getTime() < agora.getTime()) {
+    data.setDate(data.getDate() + 1)
   }
 
-  return d.toISOString()
+  return data.toISOString()
 }
 
 export default function AgentesIA() {
   const [tarefas, setTarefas] = useState<Tarefa[]>([])
-  const [loading, setLoading] = useState(false)
-  const [loadingRapido, setLoadingRapido] = useState(false)
-  const [erro, setErro] = useState('')
   const [nicho, setNicho] = useState('marketing digital')
   const [plataforma, setPlataforma] = useState('instagram')
   const [objetivo, setObjetivo] = useState('crescer audiência e gerar leads')
-  const [imagemPorTarefa, setImagemPorTarefa] = useState<Record<string, string>>({})
-  const [gerandoImagemId, setGerandoImagemId] = useState<string | null>(null)
-  const [guardandoId, setGuardandoId] = useState<string | null>(null)
-  const [copiadoId, setCopiadoId] = useState<string | null>(null)
+  const [loadingRapido, setLoadingRapido] = useState(false)
+  const [loadingGod, setLoadingGod] = useState(false)
+  const [erro, setErro] = useState('')
+  const [mensagem, setMensagem] = useState('')
+  const [imagens, setImagens] = useState<Record<string, string>>({})
+  const [gerandoImagem, setGerandoImagem] = useState<string | null>(null)
+  const [guardando, setGuardando] = useState<string | null>(null)
+  const [copiado, setCopiado] = useState<string | null>(null)
 
-  const resumo = useMemo(() => {
-    return FASES.map(fase => ({
-      fase,
-      total: tarefas.filter(t => t.fase === fase).length,
-    }))
-  }, [tarefas])
-
-  const agentesStatus = useMemo(() => {
-    return AGENTES_UI.map(agente => {
-      const tarefa = tarefas.find(t => t.agente_id === agente.id)
-
-      let status = 'Pronto'
-      if ((loading || loadingRapido) && agente.id === 'post_rapido') status = 'A criar...'
-      if (loading && agente.id !== 'post_rapido') status = 'A trabalhar...'
-      if (tarefa?.estado === 'concluido') status = 'Concluído'
-
-      return {
-        ...agente,
-        status,
-      }
-    })
-  }, [tarefas, loading, loadingRapido])
-
-  const copiar = async (texto: string, id: string) => {
-    try {
-      await navigator.clipboard.writeText(texto)
-      setCopiadoId(id)
-      setTimeout(() => setCopiadoId(null), 1800)
-    } catch {
-      // silencioso
-    }
+  const mostrarMensagem = (texto: string) => {
+    setMensagem(texto)
+    setTimeout(() => setMensagem(''), 3500)
   }
 
-  const copiarTudo = async () => {
-    const texto = tarefas
-      .map(
-        t => `=== ${t.agente_nome} — ${t.titulo} ===
-
-${t.conteudo}
-
-Legenda:
-${t.legenda || '-'}
-
-Texto do criativo:
-${t.texto_criativo || '-'}
-
-Hashtags:
-${t.hashtags || '-'}
-
-CTA:
-${t.cta || '-'}
-
-Prompt de imagem:
-${t.prompt_imagem || '-'}`
-      )
-      .join('\n\n-------------------------------\n\n')
-
-    try {
-      await navigator.clipboard.writeText(texto)
-      alert('Conteúdo copiado.')
-    } catch {
-      alert('Não foi possível copiar.')
-    }
-  }
-
-  const abrirInstagram = () => {
-    window.open('https://www.instagram.com/', '_blank')
-  }
+  const criarPlaceholderRapido = (): Tarefa => ({
+    id: 'post_rapido_loading',
+    agente_id: 'post_rapido',
+    agente_nome: 'Post Rápido',
+    agente_cargo: 'Criador Instantâneo',
+    fase: 'Criação Rápida',
+    titulo: 'A criar post rápido...',
+    conteudo: 'A AdPulse está a criar um post pronto a publicar.',
+    estado: 'a_trabalhar',
+    formato: 'Post',
+    plataforma,
+    legenda: '',
+    texto_criativo: '',
+    hashtags: '',
+    cta: '',
+    prompt_imagem: '',
+    hora_sugerida: '16:25',
+  })
 
   const gerarPostRapido = async () => {
-    if (loadingRapido || loading) return
+    if (loadingRapido || loadingGod) return
 
     setErro('')
+    setMensagem('')
+    setImagens({})
     setLoadingRapido(true)
-    setImagemPorTarefa({})
-
-    const placeholder: Tarefa = {
-      id: 'post_rapido_placeholder',
-      agente_id: 'post_rapido',
-      agente_nome: 'Post Rápido',
-      agente_cargo: 'Criador Instantâneo',
-      fase: 'Criação Rápida',
-      titulo: 'A criar post rápido...',
-      conteudo: 'A AdPulse está a preparar uma legenda, texto do criativo, hashtags, CTA e prompt de imagem.',
-      estado: 'a_trabalhar',
-      formato: 'Post',
-      plataforma,
-      legenda: '',
-      texto_criativo: '',
-      hashtags: '',
-      cta: '',
-      prompt_imagem: '',
-      hora_sugerida: '09:00',
-    }
-
-    setTarefas([placeholder])
+    setTarefas([criarPlaceholderRapido()])
 
     try {
       const {
@@ -254,12 +170,12 @@ ${t.prompt_imagem || '-'}`
       const data = await resp.json()
 
       if (!resp.ok) {
-        throw new Error(data?.error || data?.erro || 'Erro ao gerar post rápido.')
+        throw new Error(data?.erro || data?.error || 'Erro ao gerar post rápido.')
       }
 
       const post = data?.post || data
 
-      const tarefaRapida: Tarefa = {
+      const tarefa: Tarefa = {
         id: `post_rapido_${Date.now()}`,
         agente_id: 'post_rapido',
         agente_nome: 'Post Rápido',
@@ -268,7 +184,7 @@ ${t.prompt_imagem || '-'}`
         titulo: post?.titulo || 'Post rápido AdPulse',
         conteudo:
           post?.conteudo ||
-          `Post pronto para ${plataforma} no nicho ${nicho}, com foco em ${objetivo}.`,
+          `Post rápido para ${plataforma}, nicho ${nicho}, objetivo ${objetivo}.`,
         estado: 'concluido',
         formato: post?.formato || 'Post',
         plataforma: post?.plataforma || plataforma,
@@ -277,39 +193,45 @@ ${t.prompt_imagem || '-'}`
         hashtags: post?.hashtags || '',
         cta: post?.cta || '',
         prompt_imagem: post?.prompt_imagem || '',
-        hora_sugerida: post?.hora_sugerida || '09:00',
+        hora_sugerida: post?.hora_sugerida || '16:25',
       }
 
-      setTarefas([tarefaRapida])
+      setTarefas([tarefa])
+      mostrarMensagem('Post rápido criado com sucesso.')
     } catch (e: any) {
-      setErro(e?.message || 'Ocorreu um erro ao gerar o post rápido.')
+      setErro(e?.message || 'Erro ao gerar post rápido.')
       setTarefas([])
     } finally {
       setLoadingRapido(false)
     }
   }
 
-  const gerarCampanha = async () => {
-    if (loading || loadingRapido) return
+  const gerarCampanhaGodMode = async () => {
+    if (loadingRapido || loadingGod) return
 
     setErro('')
-    setLoading(true)
-    setImagemPorTarefa({})
+    setMensagem('')
+    setImagens({})
+    setLoadingGod(true)
 
-    const placeholders: Tarefa[] = AGENTES_UI
-      .filter(ag => ag.id !== 'post_rapido')
-      .map(ag => ({
-        id: ag.id,
-        agente_id: ag.id,
-        agente_nome: ag.nome,
-        agente_cargo: ag.cargo,
-        fase: ag.fase,
-        titulo: 'A preparar...',
-        conteudo: 'O agente está a trabalhar...',
-        estado: 'a_trabalhar',
-        formato: 'Post',
-        plataforma,
-      }))
+    const placeholders: Tarefa[] = AGENTES.filter((a) => a.id !== 'post_rapido').map((agente) => ({
+      id: `${agente.id}_loading`,
+      agente_id: agente.id,
+      agente_nome: agente.nome,
+      agente_cargo: agente.cargo,
+      fase: agente.fase,
+      titulo: 'A preparar...',
+      conteudo: 'Este agente está a trabalhar na campanha.',
+      estado: 'a_trabalhar',
+      formato: 'Post',
+      plataforma,
+      legenda: '',
+      texto_criativo: '',
+      hashtags: '',
+      cta: '',
+      prompt_imagem: '',
+      hora_sugerida: '16:25',
+    }))
 
     setTarefas(placeholders)
 
@@ -334,24 +256,27 @@ ${t.prompt_imagem || '-'}`
       const data = await resp.json()
 
       if (!resp.ok) {
-        throw new Error(data?.error || data?.erro || 'Erro ao gerar campanha.')
+        throw new Error(data?.erro || data?.error || 'Erro ao gerar campanha.')
       }
 
-      if (Array.isArray(data?.tarefas)) {
-        setTarefas(data.tarefas)
-      } else {
+      if (!Array.isArray(data?.tarefas)) {
         throw new Error('A API não devolveu tarefas válidas.')
       }
+
+      setTarefas(data.tarefas)
+      mostrarMensagem('Campanha GOD MODE criada com sucesso.')
     } catch (e: any) {
-      setErro(e?.message || 'Ocorreu um erro ao gerar a campanha.')
+      setErro(e?.message || 'Erro ao gerar campanha GOD MODE.')
       setTarefas([])
     } finally {
-      setLoading(false)
+      setLoadingGod(false)
     }
   }
 
   const gerarImagem = async (tarefa: Tarefa) => {
-    setGerandoImagemId(tarefa.id)
+    if (tarefa.estado !== 'concluido') return
+
+    setGerandoImagem(tarefa.id)
 
     try {
       const resp = await fetch('/api/ia/gerar-imagem-post', {
@@ -371,26 +296,32 @@ ${t.prompt_imagem || '-'}`
       const data = await resp.json()
 
       if (!resp.ok) {
-        throw new Error(data?.error || data?.erro || 'Erro ao gerar imagem.')
+        throw new Error(data?.erro || data?.error || 'Erro ao gerar imagem.')
       }
 
-      if (data?.imagem || data?.imagem_url) {
-        setImagemPorTarefa(prev => ({
-          ...prev,
-          [tarefa.id]: data.imagem_url || data.imagem,
-        }))
-      } else {
-        throw new Error('A imagem não foi devolvida.')
+      const imagem = data?.imagem_url || data?.imagem
+
+      if (!imagem) {
+        throw new Error('A API não devolveu imagem.')
       }
+
+      setImagens((prev) => ({
+        ...prev,
+        [tarefa.id]: imagem,
+      }))
+
+      mostrarMensagem('Imagem criada e guardada com URL pública.')
     } catch (e: any) {
       alert(e?.message || 'Erro ao gerar imagem.')
     } finally {
-      setGerandoImagemId(null)
+      setGerandoImagem(null)
     }
   }
 
   const guardarNoCalendario = async (tarefa: Tarefa) => {
-    setGuardandoId(tarefa.id)
+    if (tarefa.estado !== 'concluido') return
+
+    setGuardando(tarefa.id)
 
     try {
       const {
@@ -413,51 +344,88 @@ ${t.prompt_imagem || '-'}`
         formato: tarefa.formato || 'Post',
         estado: 'agendado',
         hora_publicacao: horaValida(tarefa.hora_sugerida),
-        imagem_url: imagemPorTarefa[tarefa.id] || null,
-        criado_em: dataComHora(tarefa.hora_sugerida || '09:00'),
+        imagem_url: imagens[tarefa.id] || null,
+        criado_em: dataComHora(tarefa.hora_sugerida),
       })
 
       if (error) throw error
 
-      alert('Conteúdo guardado no calendário com sucesso.')
+      mostrarMensagem('Conteúdo guardado no calendário.')
     } catch (e: any) {
       alert(e?.message || 'Erro ao guardar no calendário.')
     } finally {
-      setGuardandoId(null)
+      setGuardando(null)
     }
+  }
+
+  const copiarConteudo = async (tarefa: Tarefa) => {
+    const texto = `TÍTULO:
+${tarefa.titulo}
+
+LEGENDA:
+${limparTexto(tarefa.legenda || tarefa.conteudo)}
+
+TEXTO DO CRIATIVO:
+${limparTexto(tarefa.texto_criativo || '')}
+
+HASHTAGS:
+${tarefa.hashtags || ''}
+
+CTA:
+${limparTexto(tarefa.cta || '')}
+
+PROMPT DE IMAGEM:
+${limparTexto(tarefa.prompt_imagem || '')}`
+
+    await navigator.clipboard.writeText(texto)
+    setCopiado(tarefa.id)
+    setTimeout(() => setCopiado(null), 2000)
+  }
+
+  const copiarTudo = async () => {
+    const texto = tarefas
+      .map((t) => `${t.agente_nome} — ${t.titulo}\n\n${t.legenda || t.conteudo}\n\n${t.hashtags || ''}`)
+      .join('\n\n-----------------------\n\n')
+
+    await navigator.clipboard.writeText(texto)
+    mostrarMensagem('Tudo copiado.')
+  }
+
+  const abrirInstagram = () => {
+    window.open('https://www.instagram.com/', '_blank')
   }
 
   return (
     <>
       <Head>
-        <title>Equipa AdPulse — GOD MODE</title>
+        <title>Equipa AdPulse — Conteúdo com IA</title>
       </Head>
 
-      <LayoutPainel titulo="TESTE NOVO AGENTES 456">
+      <LayoutPainel titulo="Equipa AdPulse — POST RÁPIDO ATIVO ⚡">
         <div style={{ maxWidth: 1250, margin: '0 auto' }}>
           <div
             style={{
-              border: '1px solid rgba(124,123,250,0.25)',
+              border: '1px solid rgba(124,123,250,0.35)',
               borderRadius: 18,
               padding: 20,
-              background: 'linear-gradient(180deg, rgba(124,123,250,0.10), rgba(124,123,250,0.03))',
+              background: 'linear-gradient(180deg, rgba(124,123,250,0.13), rgba(10,10,15,0.95))',
               marginBottom: 20,
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 6 }}>
-                  🤖 Agência IA AdPulse
+                <div style={{ fontWeight: 800, fontSize: 22, marginBottom: 6 }}>
+                  ⚡ AdPulse — Criador de Conteúdo Rápido
                 </div>
-                <div style={{ opacity: 0.8, fontSize: 14 }}>
-                  Cria posts rápidos em segundos ou campanhas completas com a equipa de agentes.
+                <div style={{ opacity: 0.75, fontSize: 14 }}>
+                  Gera posts rápidos em segundos ou campanhas completas com a equipa GOD MODE.
                 </div>
               </div>
 
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button
                   onClick={gerarPostRapido}
-                  disabled={loadingRapido || loading}
+                  disabled={loadingRapido || loadingGod}
                   style={{
                     padding: '12px 16px',
                     borderRadius: 10,
@@ -465,28 +433,28 @@ ${t.prompt_imagem || '-'}`
                     background: '#f59e0b',
                     color: '#fff',
                     fontWeight: 800,
-                    cursor: loadingRapido || loading ? 'not-allowed' : 'pointer',
-                    opacity: loadingRapido || loading ? 0.7 : 1,
+                    cursor: loadingRapido || loadingGod ? 'not-allowed' : 'pointer',
+                    opacity: loadingRapido || loadingGod ? 0.7 : 1,
                   }}
                 >
-                  {loadingRapido ? '⚡ A criar post...' : '⚡ Gerar post rápido'}
+                  {loadingRapido ? '⚡ A criar...' : '⚡ Gerar post rápido'}
                 </button>
 
                 <button
-                  onClick={gerarCampanha}
-                  disabled={loading || loadingRapido}
+                  onClick={gerarCampanhaGodMode}
+                  disabled={loadingRapido || loadingGod}
                   style={{
                     padding: '12px 16px',
                     borderRadius: 10,
                     border: 'none',
                     background: '#7c7bfa',
                     color: '#fff',
-                    fontWeight: 700,
-                    cursor: loading || loadingRapido ? 'not-allowed' : 'pointer',
-                    opacity: loading || loadingRapido ? 0.7 : 1,
+                    fontWeight: 800,
+                    cursor: loadingRapido || loadingGod ? 'not-allowed' : 'pointer',
+                    opacity: loadingRapido || loadingGod ? 0.7 : 1,
                   }}
                 >
-                  {loading ? '🤖 Equipa a trabalhar...' : '🚀 Gerar campanha GOD MODE'}
+                  {loadingGod ? '🤖 Equipa a trabalhar...' : '🚀 Gerar campanha GOD MODE'}
                 </button>
 
                 <button
@@ -498,7 +466,7 @@ ${t.prompt_imagem || '-'}`
                     border: '1px solid rgba(255,255,255,0.12)',
                     background: '#151523',
                     color: '#fff',
-                    fontWeight: 600,
+                    fontWeight: 700,
                     cursor: tarefas.length ? 'pointer' : 'not-allowed',
                     opacity: tarefas.length ? 1 : 0.5,
                   }}
@@ -514,7 +482,7 @@ ${t.prompt_imagem || '-'}`
                     border: '1px solid rgba(255,255,255,0.12)',
                     background: '#151523',
                     color: '#fff',
-                    fontWeight: 600,
+                    fontWeight: 700,
                     cursor: 'pointer',
                   }}
                 >
@@ -532,10 +500,10 @@ ${t.prompt_imagem || '-'}`
               }}
             >
               <div>
-                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Nicho</div>
+                <div style={{ fontSize: 12, opacity: 0.65, marginBottom: 6 }}>Nicho</div>
                 <input
                   value={nicho}
-                  onChange={e => setNicho(e.target.value)}
+                  onChange={(e) => setNicho(e.target.value)}
                   style={{
                     width: '100%',
                     padding: 12,
@@ -549,10 +517,10 @@ ${t.prompt_imagem || '-'}`
               </div>
 
               <div>
-                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Plataforma</div>
+                <div style={{ fontSize: 12, opacity: 0.65, marginBottom: 6 }}>Plataforma</div>
                 <select
                   value={plataforma}
-                  onChange={e => setPlataforma(e.target.value)}
+                  onChange={(e) => setPlataforma(e.target.value)}
                   style={{
                     width: '100%',
                     padding: 12,
@@ -570,11 +538,11 @@ ${t.prompt_imagem || '-'}`
                 </select>
               </div>
 
-              <div style={{ gridColumn: 'span 2' }}>
-                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Objetivo</div>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.65, marginBottom: 6 }}>Objetivo</div>
                 <input
                   value={objetivo}
-                  onChange={e => setObjetivo(e.target.value)}
+                  onChange={(e) => setObjetivo(e.target.value)}
                   style={{
                     width: '100%',
                     padding: 12,
@@ -599,7 +567,7 @@ ${t.prompt_imagem || '-'}`
             >
               <div
                 style={{
-                  width: loading || loadingRapido ? '45%' : tarefas.length ? '100%' : '0%',
+                  width: loadingRapido || loadingGod ? '45%' : tarefas.length ? '100%' : '0%',
                   height: '100%',
                   background: loadingRapido ? '#f59e0b' : '#7c7bfa',
                   transition: 'all 0.4s ease',
@@ -608,14 +576,30 @@ ${t.prompt_imagem || '-'}`
             </div>
           </div>
 
-          {!!erro && (
+          {mensagem && (
+            <div
+              style={{
+                marginBottom: 18,
+                padding: 14,
+                borderRadius: 12,
+                background: 'rgba(34,197,94,0.10)',
+                border: '1px solid rgba(34,197,94,0.28)',
+                color: '#22c55e',
+                fontSize: 14,
+              }}
+            >
+              {mensagem}
+            </div>
+          )}
+
+          {erro && (
             <div
               style={{
                 marginBottom: 18,
                 padding: 14,
                 borderRadius: 12,
                 background: 'rgba(248,113,113,0.10)',
-                border: '1px solid rgba(248,113,113,0.25)',
+                border: '1px solid rgba(248,113,113,0.28)',
                 color: '#f87171',
                 fontSize: 14,
               }}
@@ -627,65 +611,63 @@ ${t.prompt_imagem || '-'}`
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
               gap: 14,
-              marginBottom: 22,
+              marginBottom: 24,
             }}
           >
-            {agentesStatus.map(agente => (
-              <div
-                key={agente.id}
-                style={{
-                  borderRadius: 16,
-                  padding: 16,
-                  border: `1px solid ${corFase(agente.fase)}55`,
-                  background: agente.id === 'post_rapido'
-                    ? 'rgba(50,38,10,0.85)'
-                    : 'rgba(10,18,16,0.85)',
-                  boxShadow: '0 0 0 1px rgba(0,0,0,0.15) inset',
-                }}
-              >
-                <div style={{ fontSize: 22, marginBottom: 8 }}>{agente.emoji}</div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{agente.nome}</div>
-                <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>{agente.cargo}</div>
-                <div style={{ fontSize: 12, color: corFase(agente.fase), marginTop: 6 }}>{agente.fase}</div>
+            {AGENTES.map((agente) => {
+              const tarefa = tarefas.find((t) => t.agente_id === agente.id)
+              const ativo =
+                (loadingRapido && agente.id === 'post_rapido') ||
+                (loadingGod && agente.id !== 'post_rapido')
+
+              return (
                 <div
+                  key={agente.id}
                   style={{
-                    fontSize: 12,
-                    marginTop: 10,
-                    color: corEstado(
-                      agente.status === 'Concluído'
-                        ? 'concluido'
-                        : loading || loadingRapido
-                          ? 'a_trabalhar'
-                          : 'pendente'
-                    ),
+                    borderRadius: 16,
+                    padding: 16,
+                    border: `1px solid ${corFase(agente.fase)}55`,
+                    background:
+                      agente.id === 'post_rapido'
+                        ? 'rgba(50,38,10,0.85)'
+                        : 'rgba(10,18,16,0.85)',
                   }}
                 >
-                  {agente.status}
+                  <div style={{ fontSize: 22, marginBottom: 8 }}>{agente.emoji}</div>
+                  <div style={{ fontWeight: 800, fontSize: 15 }}>{agente.nome}</div>
+                  <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>{agente.cargo}</div>
+                  <div style={{ fontSize: 12, color: corFase(agente.fase), marginTop: 6 }}>{agente.fase}</div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      marginTop: 10,
+                      color: tarefa?.estado === 'concluido' ? '#22c55e' : ativo ? '#f59e0b' : '#94a3b8',
+                    }}
+                  >
+                    {tarefa?.estado === 'concluido' ? '✅ Concluído' : ativo ? '⏳ A trabalhar...' : 'Pronto'}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
-          {FASES.map(fase => {
-            const lista = tarefas.filter(t => t.fase === fase)
-            if (!loading && !loadingRapido && lista.length === 0) return null
+          {FASES.map((fase) => {
+            const lista = tarefas.filter((t) => t.fase === fase)
+
+            if (!lista.length) return null
 
             return (
-              <div key={fase} style={{ marginBottom: 24 }}>
-                <div style={{ marginBottom: 10, fontWeight: 700, fontSize: 20, color: '#fff' }}>
-                  {fase} ({loading || loadingRapido ? lista.length : resumo.find(r => r.fase === fase)?.total || 0})
-                </div>
-
-                {(loading || loadingRapido) && !lista.length && (
-                  <div style={{ opacity: 0.7, fontSize: 14 }}>A equipa está a trabalhar...</div>
-                )}
+              <div key={fase} style={{ marginBottom: 28 }}>
+                <h2 style={{ fontSize: 20, marginBottom: 12 }}>
+                  {fase} ({lista.length})
+                </h2>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {lista.map(t => (
+                  {lista.map((tarefa) => (
                     <div
-                      key={t.id}
+                      key={tarefa.id}
                       style={{
                         borderRadius: 16,
                         border: '1px solid rgba(255,255,255,0.10)',
@@ -693,21 +675,13 @@ ${t.prompt_imagem || '-'}`
                         padding: 18,
                       }}
                     >
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          gap: 12,
-                          flexWrap: 'wrap',
-                          marginBottom: 12,
-                        }}
-                      >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                         <div>
-                          <div style={{ fontWeight: 700, fontSize: 16 }}>
-                            {t.agente_nome} — {t.agente_cargo}
+                          <div style={{ fontWeight: 800, fontSize: 17 }}>
+                            {tarefa.agente_nome} — {tarefa.agente_cargo}
                           </div>
-                          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
-                            {t.fase} • {t.titulo}
+                          <div style={{ fontSize: 12, opacity: 0.65, marginTop: 4 }}>
+                            {tarefa.fase} • {tarefa.titulo}
                           </div>
                         </div>
 
@@ -715,15 +689,21 @@ ${t.prompt_imagem || '-'}`
                           style={{
                             padding: '6px 10px',
                             borderRadius: 999,
-                            background: t.estado === 'concluido' ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)',
-                            border: `1px solid ${t.estado === 'concluido' ? 'rgba(34,197,94,0.30)' : 'rgba(245,158,11,0.30)'}`,
-                            color: t.estado === 'concluido' ? '#22c55e' : '#f59e0b',
+                            background:
+                              tarefa.estado === 'concluido'
+                                ? 'rgba(34,197,94,0.12)'
+                                : 'rgba(245,158,11,0.12)',
+                            border:
+                              tarefa.estado === 'concluido'
+                                ? '1px solid rgba(34,197,94,0.30)'
+                                : '1px solid rgba(245,158,11,0.30)',
+                            color: tarefa.estado === 'concluido' ? '#22c55e' : '#f59e0b',
                             fontSize: 12,
-                            fontWeight: 700,
+                            fontWeight: 800,
                             height: 'fit-content',
                           }}
                         >
-                          {t.estado === 'concluido' ? '✅ Concluído' : '⏳ A trabalhar'}
+                          {tarefa.estado === 'concluido' ? '✅ Concluído' : '⏳ A trabalhar'}
                         </div>
                       </div>
 
@@ -732,141 +712,23 @@ ${t.prompt_imagem || '-'}`
                           display: 'grid',
                           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                           gap: 12,
+                          marginTop: 16,
                           marginBottom: 14,
                         }}
                       >
-                        <div
-                          style={{
-                            padding: 12,
-                            borderRadius: 12,
-                            background: '#141624',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                          }}
-                        >
-                          <div style={{ fontSize: 11, opacity: 0.65, marginBottom: 6 }}>Formato</div>
-                          <div style={{ fontWeight: 600 }}>{t.formato || 'Post'}</div>
-                        </div>
-
-                        <div
-                          style={{
-                            padding: 12,
-                            borderRadius: 12,
-                            background: '#141624',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                          }}
-                        >
-                          <div style={{ fontSize: 11, opacity: 0.65, marginBottom: 6 }}>Plataforma</div>
-                          <div style={{ fontWeight: 600 }}>{t.plataforma || plataforma}</div>
-                        </div>
-
-                        <div
-                          style={{
-                            padding: 12,
-                            borderRadius: 12,
-                            background: '#141624',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                          }}
-                        >
-                          <div style={{ fontSize: 11, opacity: 0.65, marginBottom: 6 }}>Hora sugerida</div>
-                          <div style={{ fontWeight: 600 }}>{t.hora_sugerida || '09:00'}</div>
-                        </div>
+                        <InfoBox label="Formato" value={tarefa.formato || 'Post'} />
+                        <InfoBox label="Plataforma" value={tarefa.plataforma || plataforma} />
+                        <InfoBox label="Hora sugerida" value={tarefa.hora_sugerida || '16:25'} />
                       </div>
 
-                      <div
-                        style={{
-                          padding: 14,
-                          borderRadius: 12,
-                          background: '#141624',
-                          border: '1px solid rgba(255,255,255,0.06)',
-                          marginBottom: 12,
-                        }}
-                      >
-                        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Conteúdo completo</div>
-                        <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.65 }}>
-                          {t.conteudo}
-                        </div>
-                      </div>
+                      <ContentBox label="Conteúdo completo" value={tarefa.conteudo} />
+                      <ContentBox label="Legenda pronta" value={tarefa.legenda || 'Sem legenda específica.'} />
+                      <ContentBox label="Texto do criativo" value={tarefa.texto_criativo || 'Sem texto específico.'} />
+                      <ContentBox label="Hashtags" value={tarefa.hashtags || '#adpulse #marketingdigital'} />
+                      <ContentBox label="CTA" value={tarefa.cta || 'Experimenta a AdPulse.'} />
+                      <ContentBox label="Prompt de imagem" value={tarefa.prompt_imagem || 'Criar criativo moderno dark mode para redes sociais.'} />
 
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-                          gap: 12,
-                        }}
-                      >
-                        <div
-                          style={{
-                            padding: 14,
-                            borderRadius: 12,
-                            background: '#141624',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                          }}
-                        >
-                          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Legenda pronta</div>
-                          <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55 }}>
-                            {t.legenda || 'Sem legenda específica.'}
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            padding: 14,
-                            borderRadius: 12,
-                            background: '#141624',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                          }}
-                        >
-                          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Texto do criativo</div>
-                          <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55 }}>
-                            {t.texto_criativo || 'Sem texto específico para o criativo.'}
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            padding: 14,
-                            borderRadius: 12,
-                            background: '#141624',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                          }}
-                        >
-                          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Hashtags</div>
-                          <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55 }}>
-                            {t.hashtags || '#adpulse #marketingdigital'}
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            padding: 14,
-                            borderRadius: 12,
-                            background: '#141624',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                          }}
-                        >
-                          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>CTA</div>
-                          <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55 }}>
-                            {t.cta || 'Experimenta grátis na AdPulse.'}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          padding: 14,
-                          borderRadius: 12,
-                          background: '#141624',
-                          border: '1px solid rgba(255,255,255,0.06)',
-                          marginTop: 12,
-                        }}
-                      >
-                        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Prompt de imagem</div>
-                        <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55 }}>
-                          {t.prompt_imagem || 'Criar um criativo moderno para redes sociais, dark mode, visual tech e profissional.'}
-                        </div>
-                      </div>
-
-                      {!!imagemPorTarefa[t.id] && (
+                      {imagens[tarefa.id] && (
                         <div
                           style={{
                             marginTop: 14,
@@ -878,8 +740,8 @@ ${t.prompt_imagem || '-'}`
                         >
                           <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>Imagem gerada</div>
                           <img
-                            src={imagemPorTarefa[t.id]}
-                            alt={t.titulo}
+                            src={imagens[tarefa.id]}
+                            alt={tarefa.titulo}
                             style={{
                               width: '100%',
                               maxWidth: 500,
@@ -891,91 +753,33 @@ ${t.prompt_imagem || '-'}`
                         </div>
                       )}
 
-                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
                         <button
-                          onClick={() =>
-                            copiar(
-                              `Título:
-${t.titulo}
-
-Conteúdo:
-${stripMarkdown(t.conteudo)}
-
-Legenda:
-${stripMarkdown(t.legenda || '')}
-
-Texto do criativo:
-${stripMarkdown(t.texto_criativo || '')}
-
-Hashtags:
-${t.hashtags || ''}
-
-CTA:
-${stripMarkdown(t.cta || '')}
-
-Prompt de imagem:
-${stripMarkdown(t.prompt_imagem || '')}`,
-                              t.id
-                            )
-                          }
-                          style={{
-                            padding: '10px 14px',
-                            borderRadius: 10,
-                            border: '1px solid rgba(255,255,255,0.10)',
-                            background: copiadoId === t.id ? 'rgba(34,197,94,0.12)' : '#151523',
-                            color: copiadoId === t.id ? '#22c55e' : '#fff',
-                            cursor: 'pointer',
-                            fontWeight: 600,
-                          }}
+                          onClick={() => copiarConteudo(tarefa)}
+                          style={buttonStyle('#151523')}
                         >
-                          {copiadoId === t.id ? '✅ Copiado' : '📋 Copiar conteúdo'}
+                          {copiado === tarefa.id ? '✅ Copiado' : '📋 Copiar conteúdo'}
                         </button>
 
                         <button
-                          onClick={() => gerarImagem(t)}
-                          disabled={gerandoImagemId === t.id || t.estado !== 'concluido'}
-                          style={{
-                            padding: '10px 14px',
-                            borderRadius: 10,
-                            border: 'none',
-                            background: '#7c7bfa',
-                            color: '#fff',
-                            cursor: gerandoImagemId === t.id || t.estado !== 'concluido' ? 'not-allowed' : 'pointer',
-                            fontWeight: 700,
-                            opacity: gerandoImagemId === t.id || t.estado !== 'concluido' ? 0.7 : 1,
-                          }}
+                          onClick={() => gerarImagem(tarefa)}
+                          disabled={gerandoImagem === tarefa.id || tarefa.estado !== 'concluido'}
+                          style={buttonStyle('#7c7bfa', gerandoImagem === tarefa.id || tarefa.estado !== 'concluido')}
                         >
-                          {gerandoImagemId === t.id ? '🎨 A gerar imagem...' : '🎨 Gerar imagem'}
+                          {gerandoImagem === tarefa.id ? '🎨 A gerar...' : '🎨 Gerar imagem'}
                         </button>
 
                         <button
-                          onClick={() => guardarNoCalendario(t)}
-                          disabled={guardandoId === t.id || t.estado !== 'concluido'}
-                          style={{
-                            padding: '10px 14px',
-                            borderRadius: 10,
-                            border: 'none',
-                            background: '#14b8a6',
-                            color: '#fff',
-                            cursor: guardandoId === t.id || t.estado !== 'concluido' ? 'not-allowed' : 'pointer',
-                            fontWeight: 700,
-                            opacity: guardandoId === t.id || t.estado !== 'concluido' ? 0.7 : 1,
-                          }}
+                          onClick={() => guardarNoCalendario(tarefa)}
+                          disabled={guardando === tarefa.id || tarefa.estado !== 'concluido'}
+                          style={buttonStyle('#14b8a6', guardando === tarefa.id || tarefa.estado !== 'concluido')}
                         >
-                          {guardandoId === t.id ? '💾 A guardar...' : '💾 Guardar no calendário'}
+                          {guardando === tarefa.id ? '💾 A guardar...' : '💾 Guardar no calendário'}
                         </button>
 
                         <button
                           onClick={abrirInstagram}
-                          style={{
-                            padding: '10px 14px',
-                            borderRadius: 10,
-                            border: '1px solid rgba(255,255,255,0.10)',
-                            background: '#151523',
-                            color: '#fff',
-                            cursor: 'pointer',
-                            fontWeight: 600,
-                          }}
+                          style={buttonStyle('#151523')}
                         >
                           📱 Ir ao Instagram
                         </button>
@@ -992,3 +796,50 @@ ${stripMarkdown(t.prompt_imagem || '')}`,
   )
 }
 
+function InfoBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        padding: 12,
+        borderRadius: 12,
+        background: '#141624',
+        border: '1px solid rgba(255,255,255,0.06)',
+      }}
+    >
+      <div style={{ fontSize: 11, opacity: 0.65, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontWeight: 700 }}>{value}</div>
+    </div>
+  )
+}
+
+function ContentBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        padding: 14,
+        borderRadius: 12,
+        background: '#141624',
+        border: '1px solid rgba(255,255,255,0.06)',
+        marginTop: 12,
+      }}
+    >
+      <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>{label}</div>
+      <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.6 }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function buttonStyle(background: string, disabled = false): React.CSSProperties {
+  return {
+    padding: '10px 14px',
+    borderRadius: 10,
+    border: background === '#151523' ? '1px solid rgba(255,255,255,0.10)' : 'none',
+    background,
+    color: '#fff',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    fontWeight: 800,
+    opacity: disabled ? 0.6 : 1,
+  }
+}
