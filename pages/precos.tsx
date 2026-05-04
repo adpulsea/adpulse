@@ -11,6 +11,7 @@ import {
   Loader2,
   Star,
 } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 type Plano = 'pro' | 'agencia'
 
@@ -23,10 +24,26 @@ export default function Precos() {
     setLoading(plano)
 
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session?.access_token) {
+        setErro('Tens de iniciar sessão antes de fazer upgrade.')
+        setLoading(null)
+
+        setTimeout(() => {
+          window.location.href = '/auth/login?redirect=/precos'
+        }, 1200)
+
+        return
+      }
+
       const resp = await fetch('/api/checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ plano }),
       })
@@ -259,44 +276,6 @@ export default function Precos() {
             />
           </section>
 
-          <section style={{ marginTop: 70 }}>
-            <h2
-              style={{
-                textAlign: 'center',
-                fontSize: 30,
-                fontWeight: 950,
-                letterSpacing: '-0.03em',
-                marginBottom: 28,
-              }}
-            >
-              O que dizem os nossos utilizadores
-            </h2>
-
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                gap: 20,
-              }}
-            >
-              <Testemunho
-                nome="Ana Silva"
-                cargo="Criadora de conteúdo"
-                texto="Em 30 dias cresci 5k seguidores no Instagram. A IA gera conteúdo melhor que eu."
-              />
-              <Testemunho
-                nome="Pedro Costa"
-                cargo="Empreendedor"
-                texto="Poupei 10h por semana de planeamento. O calendário automático é incrível."
-              />
-              <Testemunho
-                nome="Maria João"
-                cargo="Gestora de redes sociais"
-                texto="Giro 8 clientes com a AdPulse. Não imagino trabalhar sem isto."
-              />
-            </div>
-          </section>
-
           <div
             style={{
               marginTop: 42,
@@ -499,58 +478,6 @@ function PlanoCard({
           </li>
         ))}
       </ul>
-    </div>
-  )
-}
-
-function Testemunho({
-  nome,
-  cargo,
-  texto,
-}: {
-  nome: string
-  cargo: string
-  texto: string
-}) {
-  return (
-    <div
-      style={{
-        borderRadius: 20,
-        border: '1px solid rgba(255,255,255,0.10)',
-        background: '#10101a',
-        padding: 24,
-      }}
-    >
-      <div style={{ color: '#fbbf24', marginBottom: 14 }}>★★★★★</div>
-      <p style={{ color: '#b8b8c8', fontSize: 14, lineHeight: 1.6 }}>
-        "{texto}"
-      </p>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18 }}>
-        <div
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 10,
-            background: '#312e81',
-            color: '#c4b5fd',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 13,
-            fontWeight: 900,
-          }}
-        >
-          {nome
-            .split(' ')
-            .map((p) => p[0])
-            .join('')
-            .slice(0, 2)}
-        </div>
-        <div>
-          <div style={{ fontWeight: 900, fontSize: 14 }}>{nome}</div>
-          <div style={{ color: '#8b8ba7', fontSize: 12 }}>{cargo}</div>
-        </div>
-      </div>
     </div>
   )
 }
