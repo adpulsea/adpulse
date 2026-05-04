@@ -144,5 +144,3 @@ adpulse/
 ---
 
 Feito em Portugal, para o mundo. 🇵🇹
-
-deploy test
