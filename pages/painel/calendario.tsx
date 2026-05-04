@@ -9,6 +9,7 @@ import {
   Eye,
   Copy,
   X,
+  Send,
 } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import ExportarPDF from '@/components/ExportarPDF'
@@ -109,6 +110,12 @@ export default function Calendario() {
   const [carregando, setCarregando] = useState(true)
   const [postAberto, setPostAberto] = useState<Post | null>(null)
   const [mensagem, setMensagem] = useState('')
+  const [publicandoId, setPublicandoId] = useState<string | null>(null)
+
+  const mostrarMensagem = (texto: string) => {
+    setMensagem(texto)
+    setTimeout(() => setMensagem(''), 4500)
+  }
 
   const carregarPosts = async () => {
     if (!utilizador) return
@@ -234,13 +241,15 @@ export default function Calendario() {
         .eq('id', post.tarefa_id)
 
       setPosts((prev) => prev.filter((p) => p.id !== post.id))
-      setMensagem('Agendamento removido.')
+      setPostAberto(null)
+      mostrarMensagem('Agendamento removido.')
       return
     }
 
     await supabase.from('posts').delete().eq('id', post.id)
     setPosts((prev) => prev.filter((p) => p.id !== post.id))
-    setMensagem('Post removido.')
+    setPostAberto(null)
+    mostrarMensagem('Post removido.')
   }
 
   const copiarPost = async (post: Post) => {
@@ -261,7 +270,66 @@ Imagem:
 ${post.imagem_url || 'Sem imagem'}`
 
     await navigator.clipboard.writeText(texto)
-    setMensagem('Conteúdo copiado.')
+    mostrarMensagem('Conteúdo copiado.')
+  }
+
+  const publicarPost = async (post: Post) => {
+    if (!post.imagem_url) {
+      alert('Este conteúdo ainda não tem imagem. Gera uma imagem antes de publicar.')
+      return
+    }
+
+    if (post.estado === 'publicado') {
+      mostrarMensagem('Este conteúdo já está marcado como publicado.')
+      return
+    }
+
+    setPublicandoId(post.id)
+
+    try {
+      const body =
+        post.origem === 'equipa_adpulse' && post.tarefa_id
+          ? { tarefa_id: post.tarefa_id }
+          : { post_id: post.id }
+
+      const resp = await fetch('/api/ia/publicar-instagram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+
+      const data = await resp.json()
+
+      if (!resp.ok) {
+        throw new Error(data?.erro || data?.error || 'Erro ao publicar.')
+      }
+
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === post.id
+            ? { ...p, estado: 'publicado' }
+            : p
+        )
+      )
+
+      setPostAberto((prev) =>
+        prev && prev.id === post.id
+          ? { ...prev, estado: 'publicado' }
+          : prev
+      )
+
+      if (data?.modo === 'simulado') {
+        mostrarMensagem('Publicado em modo simulado. Quando ligares a Meta API, passa a publicação real.')
+      } else {
+        mostrarMensagem('Publicado no Instagram com sucesso.')
+      }
+    } catch (e: any) {
+      alert(e?.message || 'Erro ao publicar no Instagram.')
+    } finally {
+      setPublicandoId(null)
+    }
   }
 
   const postsMes = posts.filter((p) => p.mes === mesAtual && p.ano === anoAtual)
@@ -300,10 +368,7 @@ ${post.imagem_url || 'Sem imagem'}`
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <button
-                onClick={carregarPosts}
-                style={primaryButtonStyle}
-              >
+              <button onClick={carregarPosts} style={primaryButtonStyle}>
                 Atualizar
               </button>
 
@@ -461,6 +526,23 @@ ${post.imagem_url || 'Sem imagem'}`
                       Copiar
                     </button>
 
+                    <button
+                      onClick={() => publicarPost(post)}
+                      disabled={post.estado === 'publicado' || !post.imagem_url || publicandoId === post.id}
+                      style={{
+                        ...smallButtonStyle('#22c55e'),
+                        opacity: post.estado === 'publicado' || !post.imagem_url || publicandoId === post.id ? 0.55 : 1,
+                        cursor: post.estado === 'publicado' || !post.imagem_url || publicandoId === post.id ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      <Send size={13} />
+                      {publicandoId === post.id
+                        ? 'A publicar...'
+                        : post.estado === 'publicado'
+                          ? 'Publicado'
+                          : 'Publicar'}
+                    </button>
+
                     <button onClick={() => apagarPost(post)} style={smallButtonStyle('#ef4444')}>
                       <Trash2 size={13} />
                       Remover
@@ -476,9 +558,11 @@ ${post.imagem_url || 'Sem imagem'}`
       {postAberto && (
         <ModalConteudo
           post={postAberto}
+          publicando={publicandoId === postAberto.id}
           onFechar={() => setPostAberto(null)}
           onCopiar={copiarPost}
           onApagar={apagarPost}
+          onPublicar={publicarPost}
         />
       )}
     </>
@@ -487,14 +571,18 @@ ${post.imagem_url || 'Sem imagem'}`
 
 function ModalConteudo({
   post,
+  publicando,
   onFechar,
   onCopiar,
   onApagar,
+  onPublicar,
 }: {
   post: Post
+  publicando: boolean
   onFechar: () => void
   onCopiar: (post: Post) => void
   onApagar: (post: Post) => void
+  onPublicar: (post: Post) => void
 }) {
   const hashtags = Array.isArray(post.hashtags)
     ? post.hashtags.join(' ')
@@ -563,6 +651,23 @@ function ModalConteudo({
           <button onClick={() => onCopiar(post)} style={smallButtonStyle('#7c7bfa')}>
             <Copy size={14} />
             Copiar
+          </button>
+
+          <button
+            onClick={() => onPublicar(post)}
+            disabled={post.estado === 'publicado' || !post.imagem_url || publicando}
+            style={{
+              ...smallButtonStyle('#22c55e'),
+              opacity: post.estado === 'publicado' || !post.imagem_url || publicando ? 0.55 : 1,
+              cursor: post.estado === 'publicado' || !post.imagem_url || publicando ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <Send size={14} />
+            {publicando
+              ? 'A publicar...'
+              : post.estado === 'publicado'
+                ? 'Publicado'
+                : 'Publicar agora'}
           </button>
 
           <button onClick={() => onApagar(post)} style={smallButtonStyle('#ef4444')}>
