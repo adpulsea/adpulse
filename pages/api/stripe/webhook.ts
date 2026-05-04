@@ -2,192 +2,254 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 export const config = {
   api: {
     bodyParser: false,
   },
 }
 
-async function lerBody(req: NextApiRequest): Promise<Buffer> {
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || ''
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || ''
+
+const stripe = stripeSecretKey
+  ? new Stripe(stripeSecretKey)
+  : null
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+)
+
+function buffer(readable: any): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
-    req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
-    req.on('end', () => resolve(Buffer.concat(chunks)))
-    req.on('error', reject)
+
+    readable.on('data', (chunk: Buffer | string) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    })
+
+    readable.on('end', () => {
+      resolve(Buffer.concat(chunks))
+    })
+
+    readable.on('error', reject)
   })
 }
 
+function planoFromPrice(priceId?: string | null) {
+  if (!priceId) return 'free'
+
+  if (priceId === process.env.STRIPE_PRICE_PRO) {
+    return 'pro'
+  }
+
+  if (priceId === process.env.STRIPE_PRICE_AGENCIA) {
+    return 'agencia'
+  }
+
+  return 'pro'
+}
+
 async function atualizarPerfil({
-  utilizadorId,
-  email,
+  userId,
   plano,
+  estado,
   customerId,
   subscriptionId,
-  estado,
-  renovaEm,
+  priceId,
 }: {
-  utilizadorId?: string | null
-  email?: string | null
+  userId: string
   plano: string
+  estado: string
   customerId?: string | null
   subscriptionId?: string | null
-  estado?: string | null
-  renovaEm?: string | null
+  priceId?: string | null
 }) {
-  const updateData = {
-    plano,
-    stripe_customer_id: customerId || null,
-    stripe_subscription_id: subscriptionId || null,
-    plano_estado: estado || 'ativo',
-    plano_renova_em: renovaEm || null,
-  }
+  if (!userId) return
 
-  if (utilizadorId) {
-    const { data, error } = await supabase
-      .from('perfis')
-      .update(updateData)
-      .eq('id', utilizadorId)
-      .select()
+  const { error } = await supabaseAdmin
+    .from('perfis')
+    .update({
+      plano,
+      estado_assinatura: estado,
+      stripe_customer_id: customerId || null,
+      stripe_subscription_id: subscriptionId || null,
+      stripe_price_id: priceId || null,
+      plano_atualizado_em: new Date().toISOString(),
+      atualizado_em: new Date().toISOString(),
+    })
+    .eq('id', userId)
 
-    if (error) throw error
-    if (data && data.length > 0) return
-  }
-
-  if (email) {
-    const { data, error } = await supabase
-      .from('perfis')
-      .update(updateData)
-      .eq('email', email)
-      .select()
-
-    if (error) throw error
-    if (data && data.length > 0) return
+  if (error) {
+    console.error('Erro ao atualizar perfil:', error)
+    throw error
   }
 }
 
-function obterRenovacao(subscription: any): string | null {
-  const fim = subscription?.current_period_end
+async function processarCheckoutCompleted(session: Stripe.Checkout.Session) {
+  const userId =
+    session.metadata?.user_id ||
+    session.client_reference_id ||
+    ''
 
-  if (!fim) return null
+  const plano = session.metadata?.plano || 'pro'
 
-  return new Date(fim * 1000).toISOString()
+  const customerId =
+    typeof session.customer === 'string'
+      ? session.customer
+      : session.customer?.id || null
+
+  const subscriptionId =
+    typeof session.subscription === 'string'
+      ? session.subscription
+      : session.subscription?.id || null
+
+  let priceId: string | null = null
+  let estado = 'active'
+
+  if (subscriptionId && stripe) {
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+    priceId = subscription.items.data[0]?.price?.id || null
+    estado = subscription.status || 'active'
+  }
+
+  await atualizarPerfil({
+    userId,
+    plano,
+    estado,
+    customerId,
+    subscriptionId,
+    priceId,
+  })
+}
+
+async function processarSubscriptionUpdated(subscription: Stripe.Subscription) {
+  const userId = subscription.metadata?.user_id || ''
+  const planoMetadata = subscription.metadata?.plano || ''
+  const priceId = subscription.items.data[0]?.price?.id || null
+  const plano = planoMetadata || planoFromPrice(priceId)
+
+  const customerId =
+    typeof subscription.customer === 'string'
+      ? subscription.customer
+      : subscription.customer?.id || null
+
+  await atualizarPerfil({
+    userId,
+    plano,
+    estado: subscription.status,
+    customerId,
+    subscriptionId: subscription.id,
+    priceId,
+  })
+}
+
+async function processarSubscriptionDeleted(subscription: Stripe.Subscription) {
+  const userId = subscription.metadata?.user_id || ''
+
+  const customerId =
+    typeof subscription.customer === 'string'
+      ? subscription.customer
+      : subscription.customer?.id || null
+
+  await atualizarPerfil({
+    userId,
+    plano: 'free',
+    estado: 'canceled',
+    customerId,
+    subscriptionId: subscription.id,
+    priceId: subscription.items.data[0]?.price?.id || null,
+  })
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).end()
+    return res.status(405).json({
+      erro: 'Método não permitido.',
+    })
   }
 
-  const body = await lerBody(req)
-  const sig = req.headers['stripe-signature'] as string
+  if (!stripe) {
+    return res.status(500).json({
+      erro: 'STRIPE_SECRET_KEY não configurada.',
+    })
+  }
 
-  let evento: Stripe.Event
+  if (!webhookSecret) {
+    return res.status(500).json({
+      erro: 'STRIPE_WEBHOOK_SECRET não configurada.',
+    })
+  }
+
+  const signature = req.headers['stripe-signature']
+
+  if (!signature || Array.isArray(signature)) {
+    return res.status(400).json({
+      erro: 'Assinatura Stripe inválida.',
+    })
+  }
+
+  let event: Stripe.Event
 
   try {
-    evento = stripe.webhooks.constructEvent(
-      body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET!
+    const rawBody = await buffer(req)
+
+    event = stripe.webhooks.constructEvent(
+      rawBody,
+      signature,
+      webhookSecret
     )
-  } catch (err: any) {
-    console.error('Erro assinatura webhook:', err.message)
-    return res.status(400).json({ erro: err.message })
+  } catch (error: any) {
+    console.error('Erro ao validar webhook Stripe:', error?.message)
+
+    return res.status(400).json({
+      erro: `Webhook inválido: ${error?.message}`,
+    })
   }
 
   try {
-    if (evento.type === 'checkout.session.completed') {
-      const session = evento.data.object as Stripe.Checkout.Session
-
-      const utilizadorId = session.metadata?.utilizadorId || null
-      const plano = session.metadata?.plano || 'pro'
-      const email = session.customer_email || session.customer_details?.email || null
-
-      const customerId =
-        typeof session.customer === 'string'
-          ? session.customer
-          : session.customer?.id || null
-
-      const subscriptionId =
-        typeof session.subscription === 'string'
-          ? session.subscription
-          : session.subscription?.id || null
-
-      let estado = 'ativo'
-      let renovaEm: string | null = null
-
-      if (subscriptionId) {
-        const subscription: any = await stripe.subscriptions.retrieve(subscriptionId)
-        estado = subscription?.status || 'active'
-        renovaEm = obterRenovacao(subscription)
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session
+        await processarCheckoutCompleted(session)
+        break
       }
 
-      await atualizarPerfil({
-        utilizadorId,
-        email,
-        plano,
-        customerId,
-        subscriptionId,
-        estado,
-        renovaEm,
-      })
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object as Stripe.Subscription
+        await processarSubscriptionUpdated(subscription)
+        break
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription
+        await processarSubscriptionDeleted(subscription)
+        break
+      }
+
+      case 'invoice.payment_failed': {
+        console.log('Pagamento falhou:', event.id)
+        break
+      }
+
+      case 'invoice.paid': {
+        console.log('Fatura paga:', event.id)
+        break
+      }
+
+      default:
+        console.log(`Evento Stripe ignorado: ${event.type}`)
     }
 
-    if (evento.type === 'customer.subscription.updated') {
-      const subscription: any = evento.data.object as Stripe.Subscription
+    return res.status(200).json({
+      received: true,
+    })
+  } catch (error: any) {
+    console.error('Erro ao processar webhook Stripe:', error)
 
-      const utilizadorId = subscription.metadata?.utilizadorId || null
-      const plano = subscription.metadata?.plano || 'pro'
-
-      const customerId =
-        typeof subscription.customer === 'string'
-          ? subscription.customer
-          : subscription.customer?.id || null
-
-      await atualizarPerfil({
-        utilizadorId,
-        plano,
-        customerId,
-        subscriptionId: subscription.id,
-        estado: subscription.status,
-        renovaEm: obterRenovacao(subscription),
-      })
-    }
-
-    if (evento.type === 'customer.subscription.deleted') {
-      const subscription: any = evento.data.object as Stripe.Subscription
-
-      const utilizadorId = subscription.metadata?.utilizadorId || null
-
-      const customerId =
-        typeof subscription.customer === 'string'
-          ? subscription.customer
-          : subscription.customer?.id || null
-
-      await atualizarPerfil({
-        utilizadorId,
-        plano: 'gratuito',
-        customerId,
-        subscriptionId: subscription.id,
-        estado: 'cancelado',
-        renovaEm: null,
-      })
-    }
-
-    if (evento.type === 'invoice.payment_failed') {
-      const invoice = evento.data.object as Stripe.Invoice
-      console.log('Pagamento falhado:', invoice.customer)
-    }
-
-    return res.status(200).json({ recebido: true })
-  } catch (error) {
-    console.error('Erro ao processar webhook:', error)
-    return res.status(500).json({ erro: 'Erro ao processar webhook.' })
+    return res.status(500).json({
+      erro: error?.message || 'Erro ao processar webhook.',
+    })
   }
 }
