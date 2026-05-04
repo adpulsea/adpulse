@@ -991,3 +991,4 @@ ${stripMarkdown(t.prompt_imagem || '')}`,
     </>
   )
 }
+
