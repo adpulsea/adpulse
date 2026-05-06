@@ -17,6 +17,7 @@ import {
   Send,
   Loader,
   Lock,
+  Sparkles,
 } from 'lucide-react'
 
 type Lead = {
@@ -112,6 +113,8 @@ export default function AdminLeads() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [carregando, setCarregando] = useState(false)
   const [aGuardar, setAGuardar] = useState(false)
+  const [aGerarSofia, setAGerarSofia] = useState(false)
+  const [observacaoSofia, setObservacaoSofia] = useState('')
   const [pesquisa, setPesquisa] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState('todos')
   const [formAberto, setFormAberto] = useState(false)
@@ -185,6 +188,46 @@ export default function AdminLeads() {
     }
   }
 
+  const gerarComSofia = async () => {
+    setAGerarSofia(true)
+
+    try {
+      const res = await fetch('/api/admin/gerar-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome: form.nome,
+          username_instagram: form.username_instagram,
+          link_perfil: form.link_perfil,
+          nicho: form.nicho,
+          localizacao: form.localizacao,
+          observacao: observacaoSofia,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data?.erro || 'Erro ao gerar com Sofia.')
+      }
+
+      setForm((atual) => ({
+        ...atual,
+        problema_identificado: data.problema_identificado || '',
+        oportunidade_adpulse: data.oportunidade_adpulse || '',
+        score: Number(data.score || 50),
+        comentario_sugerido: data.comentario_sugerido || '',
+        mensagem_sugerida: data.mensagem_sugerida || '',
+        follow_up_sugerido: data.follow_up_sugerido || '',
+        proximo_passo: data.proximo_passo || '',
+      }))
+    } catch (error: any) {
+      alert(error?.message || 'Erro ao gerar com Sofia.')
+    } finally {
+      setAGerarSofia(false)
+    }
+  }
+
   const criarLead = async () => {
     setAGuardar(true)
 
@@ -203,6 +246,7 @@ export default function AdminLeads() {
 
       setLeads((atuais) => [data, ...atuais])
       setForm(LEAD_INICIAL)
+      setObservacaoSofia('')
       setFormAberto(false)
     } catch (error: any) {
       alert(error?.message || 'Erro ao criar lead.')
@@ -260,6 +304,12 @@ export default function AdminLeads() {
   const copiar = async (texto: string) => {
     await navigator.clipboard.writeText(texto || '')
     alert('Copiado!')
+  }
+
+  const abrirNovoLead = () => {
+    setForm(LEAD_INICIAL)
+    setObservacaoSofia('')
+    setFormAberto(true)
   }
 
   const leadsFiltrados = useMemo(() => {
@@ -367,7 +417,7 @@ export default function AdminLeads() {
             </div>
 
             <button
-              onClick={() => setFormAberto((atual) => !atual)}
+              onClick={abrirNovoLead}
               style={primaryButtonStyle}
             >
               <Plus size={16} />
@@ -385,7 +435,72 @@ export default function AdminLeads() {
 
           {formAberto && (
             <div style={formCardStyle}>
-              <h2 style={sectionTitleStyle}>Adicionar lead</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+                <div>
+                  <h2 style={sectionTitleStyle}>Adicionar lead</h2>
+                  <p style={{ margin: '6px 0 0', color: '#8888aa', fontSize: 12 }}>
+                    Preenche os dados base e deixa a Sofia preparar a abordagem.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setFormAberto(false)}
+                  style={secondaryButtonStyle}
+                >
+                  Fechar
+                </button>
+              </div>
+
+              <div style={sofiaBoxStyle}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={sofiaIconStyle}>
+                    <Sparkles size={17} />
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 900, color: '#f0f0f5' }}>
+                      Gerar com Sofia
+                    </div>
+
+                    <p style={{ margin: '3px 0 0', fontSize: 12, color: '#8888aa', lineHeight: 1.5 }}>
+                      Escreve uma observação rápida sobre o perfil. A Sofia preenche a análise,
+                      comentário, mensagem, follow-up, score e próximo passo.
+                    </p>
+                  </div>
+                </div>
+
+                <textarea
+                  value={observacaoSofia}
+                  onChange={(e) => setObservacaoSofia(e.target.value)}
+                  rows={4}
+                  placeholder="Ex: Café em Quarteira. Publica boas fotos, mas tem poucas legendas e não parece ter calendário de conteúdo."
+                  style={textareaStyle}
+                />
+
+                <button
+                  type="button"
+                  onClick={gerarComSofia}
+                  disabled={aGerarSofia}
+                  style={{
+                    ...primaryButtonStyle,
+                    alignSelf: 'flex-start',
+                    opacity: aGerarSofia ? 0.7 : 1,
+                    cursor: aGerarSofia ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {aGerarSofia ? (
+                    <>
+                      <Loader size={15} />
+                      A Sofia está a preparar...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={15} />
+                      Gerar com Sofia
+                    </>
+                  )}
+                </button>
+              </div>
 
               <div style={formGridStyle}>
                 <Input label="Nome" value={form.nome} onChange={(v) => setForm({ ...form, nome: v })} />
@@ -419,7 +534,17 @@ export default function AdminLeads() {
                     opacity: aGuardar ? 0.7 : 1,
                   }}
                 >
-                  {aGuardar ? 'A guardar...' : 'Guardar lead'}
+                  {aGuardar ? (
+                    <>
+                      <Loader size={15} />
+                      A guardar...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={15} />
+                      Guardar lead
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -904,6 +1029,29 @@ const formCardStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 14,
+}
+
+const sofiaBoxStyle: React.CSSProperties = {
+  padding: 16,
+  borderRadius: 16,
+  background: 'linear-gradient(135deg, rgba(124,123,250,0.12), rgba(244,114,182,0.08))',
+  border: '1px solid rgba(124,123,250,0.28)',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 12,
+}
+
+const sofiaIconStyle: React.CSSProperties = {
+  width: 38,
+  height: 38,
+  borderRadius: 12,
+  background: 'rgba(124,123,250,0.18)',
+  border: '1px solid rgba(124,123,250,0.35)',
+  color: '#c4b5fd',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
 }
 
 const sectionTitleStyle: React.CSSProperties = {
