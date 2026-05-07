@@ -1,5 +1,6 @@
 // ============================================
 // AdPulse — Layout do Painel (Sidebar + Topbar)
+// Com suporte para Plano Interno/Admin sem Stripe
 // ============================================
 
 import { useState, useEffect } from 'react'
@@ -27,6 +28,7 @@ import {
   History,
   Frame,
   HeartHandshake,
+  ShieldCheck,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { fazerLogout } from '@/lib/auth'
@@ -54,7 +56,6 @@ const ITENS_NAV = [
 ]
 
 const COR_PLANO: Record<string, string> = {
-  free: 'var(--cor-marca)',
   gratuito: 'var(--cor-marca)',
   pro: '#fbbf24',
   agencia: '#c084fc',
@@ -70,26 +71,35 @@ export default function LayoutPainel({ children, titulo }: Props) {
   const router = useRouter()
 
   const [sidebarAberta, setSidebarAberta] = useState(false)
-  const [plano, setPlano] = useState('free')
-  const [estadoAssinatura, setEstadoAssinatura] = useState('free')
+  const [plano, setPlano] = useState('gratuito')
+  const [planoEstado, setPlanoEstado] = useState('ativo')
+  const [planoRenovaEm, setPlanoRenovaEm] = useState<string | null>(null)
+  const [stripeCustomerId, setStripeCustomerId] = useState<string | null>(null)
   const [aProcessarPlano, setAProcessarPlano] = useState(false)
 
   useEffect(() => {
     if (!utilizador) return
 
     const carregarPlano = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('perfis')
-        .select('plano, estado_assinatura, plano_atualizado_em')
+        .select('plano, plano_estado, plano_renova_em, stripe_customer_id')
         .eq('id', utilizador.id)
         .single()
 
-      if (data?.plano) {
-        setPlano(data.plano)
+      if (error) {
+        console.error('Erro ao carregar plano:', error)
+        return
       }
 
-      if (data?.estado_assinatura) {
-        setEstadoAssinatura(data.estado_assinatura)
+      if (data?.plano) setPlano(data.plano)
+      if (data?.plano_estado) setPlanoEstado(data.plano_estado)
+      if (data?.plano_renova_em) setPlanoRenovaEm(data.plano_renova_em)
+
+      if (data?.stripe_customer_id) {
+        setStripeCustomerId(data.stripe_customer_id)
+      } else {
+        setStripeCustomerId(null)
       }
     }
 
@@ -97,41 +107,36 @@ export default function LayoutPainel({ children, titulo }: Props) {
   }, [utilizador])
 
   const iniciarCheckout = async (planoEscolhido: 'pro' | 'agencia') => {
+    if (!utilizador?.email || !utilizador?.id) {
+      alert('Precisas de estar autenticado para fazer upgrade.')
+      return
+    }
+
     setAProcessarPlano(true)
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!session?.access_token) {
-        router.push('/auth/login?redirect=/precos')
-        return
-      }
-
-      const res = await fetch('/api/checkout', {
+      const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           plano: planoEscolhido,
+          email: utilizador.email,
+          utilizadorId: utilizador.id,
         }),
       })
 
       const data = await res.json()
 
       if (!res.ok) {
-        alert(data?.erro || data?.error || 'Erro ao abrir checkout.')
+        throw new Error(data?.erro || data?.error || 'Erro ao abrir checkout.')
+      }
+
+      if (data.url) {
+        window.location.href = data.url
         return
       }
 
-      if (data?.url) {
-        window.location.href = data.url
-      } else {
-        alert('A Stripe não devolveu o link de pagamento.')
-      }
+      throw new Error('A Stripe não devolveu URL de checkout.')
     } catch (error: any) {
       console.error('Erro ao abrir checkout:', error)
       alert(error?.message || 'Erro ao abrir checkout.')
@@ -141,38 +146,41 @@ export default function LayoutPainel({ children, titulo }: Props) {
   }
 
   const abrirPortalStripe = async () => {
+    if (!utilizador?.id) {
+      alert('Precisas de estar autenticado.')
+      return
+    }
+
+    if (!stripeCustomerId) {
+      alert(
+        'Este plano é interno/admin e não tem cliente Stripe associado. Usa esta conta para testes internos da AdPulse.'
+      )
+      return
+    }
+
     setAProcessarPlano(true)
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!session?.access_token) {
-        router.push('/auth/login?redirect=/painel/gerir-plano')
-        return
-      }
-
       const res = await fetch('/api/stripe/portal', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          utilizadorId: utilizador.id,
+        }),
       })
 
       const data = await res.json()
 
       if (!res.ok) {
-        alert(data?.erro || data?.error || 'Erro ao abrir gestão do plano.')
+        throw new Error(data?.erro || data?.error || 'Erro ao abrir portal Stripe.')
+      }
+
+      if (data.url) {
+        window.location.href = data.url
         return
       }
 
-      if (data?.url) {
-        window.location.href = data.url
-      } else {
-        router.push('/painel/gerir-plano')
-      }
+      throw new Error('A Stripe não devolveu URL do portal.')
     } catch (error: any) {
       console.error('Erro ao abrir portal Stripe:', error)
       alert(error?.message || 'Erro ao abrir portal Stripe.')
@@ -193,25 +201,22 @@ export default function LayoutPainel({ children, titulo }: Props) {
 
   const iniciais = nomeUtilizador.slice(0, 2).toUpperCase()
 
-  const planoNormalizado = plano === 'gratuito' ? 'free' : plano
+  const planoAtual = plano || 'gratuito'
+  const planoCor = COR_PLANO[planoAtual] || COR_PLANO.gratuito
 
-  const nomePlano =
-    planoNormalizado === 'free'
-      ? 'Gratuito'
-      : planoNormalizado === 'pro'
-        ? 'Pro'
-        : planoNormalizado === 'agencia'
-          ? 'Agência'
-          : planoNormalizado
+  const planoPago = planoAtual === 'pro' || planoAtual === 'agencia'
+  const planoInterno = planoPago && !stripeCustomerId
 
   const textoPlano =
-    planoNormalizado === 'free'
+    planoAtual === 'gratuito'
       ? '3 gerações/dia'
-      : planoNormalizado === 'pro'
+      : planoAtual === 'pro'
         ? 'Gerações ilimitadas'
         : 'Multi-cliente'
 
-  const corPlano = COR_PLANO[planoNormalizado] || COR_PLANO.free
+  const textoRenovacao = planoRenovaEm
+    ? new Date(planoRenovaEm).toLocaleDateString('pt-PT')
+    : null
 
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--cor-fundo)' }}>
@@ -289,10 +294,14 @@ export default function LayoutPainel({ children, titulo }: Props) {
                       : '1px solid transparent',
                   }}
                   onMouseOver={(e) => {
-                    if (!ativo) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                    if (!ativo) {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                    }
                   }}
                   onMouseOut={(e) => {
-                    if (!ativo) e.currentTarget.style.background = 'transparent'
+                    if (!ativo) {
+                      e.currentTarget.style.background = 'transparent'
+                    }
                   }}
                 >
                   <Icone size={18} />
@@ -322,30 +331,50 @@ export default function LayoutPainel({ children, titulo }: Props) {
           <div
             className="mb-4 px-3 py-3 rounded-xl"
             style={{
-              background: `${corPlano}12`,
-              border: `1px solid ${corPlano}25`,
+              background: `${planoCor}12`,
+              border: `1px solid ${planoCor}25`,
             }}
           >
             <div className="mb-3">
               <p
-                className="text-xs font-medium"
-                style={{ color: corPlano }}
+                className="text-xs font-medium capitalize"
+                style={{ color: planoCor }}
               >
-                Plano {nomePlano}
+                Plano {planoAtual.charAt(0).toUpperCase() + planoAtual.slice(1)}
               </p>
 
               <p className="text-xs" style={{ color: 'var(--cor-texto-fraco)' }}>
                 {textoPlano}
               </p>
 
-              {planoNormalizado !== 'free' && (
+              {planoPago && (
                 <p className="text-xs mt-1" style={{ color: 'var(--cor-texto-fraco)' }}>
-                  Estado: {estadoAssinatura || 'active'}
+                  Estado: {planoEstado || 'active'}
                 </p>
+              )}
+
+              {planoPago && textoRenovacao && !planoInterno && (
+                <p className="text-xs mt-1" style={{ color: 'var(--cor-texto-fraco)' }}>
+                  Renova em: {textoRenovacao}
+                </p>
+              )}
+
+              {planoInterno && (
+                <div
+                  className="mt-2 flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg"
+                  style={{
+                    background: 'rgba(52,211,153,0.10)',
+                    border: '1px solid rgba(52,211,153,0.25)',
+                    color: '#34d399',
+                  }}
+                >
+                  <ShieldCheck size={13} />
+                  <span>Plano interno/admin</span>
+                </div>
               )}
             </div>
 
-            {planoNormalizado === 'free' && (
+            {planoAtual === 'gratuito' && (
               <button
                 onClick={() => iniciarCheckout('pro')}
                 disabled={aProcessarPlano}
@@ -362,7 +391,7 @@ export default function LayoutPainel({ children, titulo }: Props) {
               </button>
             )}
 
-            {planoNormalizado === 'pro' && (
+            {planoAtual === 'pro' && (
               <div className="flex flex-col gap-2">
                 <button
                   onClick={() => iniciarCheckout('agencia')}
@@ -379,38 +408,70 @@ export default function LayoutPainel({ children, titulo }: Props) {
                   {aProcessarPlano ? 'A abrir...' : 'Upgrade para Agência'}
                 </button>
 
-                <button
-                  onClick={abrirPortalStripe}
-                  disabled={aProcessarPlano}
-                  className="w-full text-center text-xs font-semibold px-3 py-2 rounded-lg"
-                  style={{
-                    background: 'transparent',
-                    color: '#fbbf24',
-                    border: '1px solid rgba(251,191,36,0.3)',
-                    cursor: aProcessarPlano ? 'not-allowed' : 'pointer',
-                    opacity: aProcessarPlano ? 0.7 : 1,
-                  }}
-                >
-                  {aProcessarPlano ? 'A abrir...' : 'Gerir plano'}
-                </button>
+                {stripeCustomerId && (
+                  <button
+                    onClick={abrirPortalStripe}
+                    disabled={aProcessarPlano}
+                    className="w-full text-center text-xs font-semibold px-3 py-2 rounded-lg"
+                    style={{
+                      background: 'transparent',
+                      color: '#fbbf24',
+                      border: '1px solid rgba(251,191,36,0.3)',
+                      cursor: aProcessarPlano ? 'not-allowed' : 'pointer',
+                      opacity: aProcessarPlano ? 0.7 : 1,
+                    }}
+                  >
+                    {aProcessarPlano ? 'A abrir...' : 'Gerir plano'}
+                  </button>
+                )}
+
+                {!stripeCustomerId && (
+                  <div
+                    className="w-full text-center text-xs font-semibold px-3 py-2 rounded-lg"
+                    style={{
+                      background: 'rgba(52,211,153,0.10)',
+                      color: '#34d399',
+                      border: '1px solid rgba(52,211,153,0.25)',
+                    }}
+                  >
+                    Plano interno ativo
+                  </div>
+                )}
               </div>
             )}
 
-            {planoNormalizado === 'agencia' && (
-              <button
-                onClick={abrirPortalStripe}
-                disabled={aProcessarPlano}
-                className="w-full text-center text-xs font-semibold px-3 py-2 rounded-lg"
-                style={{
-                  background: 'rgba(192,132,252,0.15)',
-                  color: '#c084fc',
-                  border: '1px solid rgba(192,132,252,0.3)',
-                  cursor: aProcessarPlano ? 'not-allowed' : 'pointer',
-                  opacity: aProcessarPlano ? 0.7 : 1,
-                }}
-              >
-                {aProcessarPlano ? 'A abrir...' : 'Gerir plano'}
-              </button>
+            {planoAtual === 'agencia' && (
+              <>
+                {stripeCustomerId && (
+                  <button
+                    onClick={abrirPortalStripe}
+                    disabled={aProcessarPlano}
+                    className="w-full text-center text-xs font-semibold px-3 py-2 rounded-lg"
+                    style={{
+                      background: 'rgba(192,132,252,0.15)',
+                      color: '#c084fc',
+                      border: '1px solid rgba(192,132,252,0.3)',
+                      cursor: aProcessarPlano ? 'not-allowed' : 'pointer',
+                      opacity: aProcessarPlano ? 0.7 : 1,
+                    }}
+                  >
+                    {aProcessarPlano ? 'A abrir...' : 'Gerir plano'}
+                  </button>
+                )}
+
+                {!stripeCustomerId && (
+                  <div
+                    className="w-full text-center text-xs font-semibold px-3 py-2 rounded-lg"
+                    style={{
+                      background: 'rgba(52,211,153,0.10)',
+                      color: '#34d399',
+                      border: '1px solid rgba(52,211,153,0.25)',
+                    }}
+                  >
+                    Plano interno ativo
+                  </div>
+                )}
+              </>
             )}
           </div>
 
