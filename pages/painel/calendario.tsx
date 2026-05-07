@@ -100,9 +100,27 @@ function extrairHora(valor: string, fallback?: string) {
   })
 }
 
+function useMobile() {
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const atualizar = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+
+    atualizar()
+    window.addEventListener('resize', atualizar)
+
+    return () => window.removeEventListener('resize', atualizar)
+  }, [])
+
+  return isMobile
+}
+
 export default function Calendario() {
   const hoje = new Date()
   const { utilizador } = useAuth()
+  const isMobile = useMobile()
 
   const [mesAtual, setMesAtual] = useState(hoje.getMonth())
   const [anoAtual, setAnoAtual] = useState(hoje.getFullYear())
@@ -341,14 +359,14 @@ ${post.imagem_url || 'Sem imagem'}`
       </Head>
 
       <LayoutPainel titulo="Calendário de Conteúdo">
-        <div style={{ maxWidth: 1250, margin: '0 auto' }}>
-          <div style={topbarStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ maxWidth: 1250, margin: '0 auto', width: '100%' }}>
+          <div style={topbarStyle(isMobile)}>
+            <div style={monthNavStyle(isMobile)}>
               <button onClick={() => navegarMes(-1)} style={iconButtonStyle}>
                 <ChevronLeft size={18} />
               </button>
 
-              <h2 style={{ minWidth: 190, textAlign: 'center', fontSize: 20, fontWeight: 800 }}>
+              <h2 style={monthTitleStyle(isMobile)}>
                 {MESES[mesAtual]} {anoAtual}
               </h2>
 
@@ -367,7 +385,7 @@ ${post.imagem_url || 'Sem imagem'}`
               </button>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={actionsStyle(isMobile)}>
               <button onClick={carregarPosts} style={primaryButtonStyle}>
                 Atualizar
               </button>
@@ -389,61 +407,135 @@ ${post.imagem_url || 'Sem imagem'}`
             <StatCard label="Com imagem" value={carregando ? '...' : String(postsMes.filter((p) => !!p.imagem_url).length)} />
           </div>
 
-          <div style={calendarBoxStyle}>
-            <div style={weekHeaderStyle}>
-              {DIAS_SEMANA.map((dia) => (
-                <div key={dia} style={weekCellStyle}>
-                  {dia}
-                </div>
-              ))}
-            </div>
+          {isMobile ? (
+            <div style={mobileCalendarBoxStyle}>
+              <div style={mobileCalendarHeaderStyle}>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>
+                  Dias do mês
+                </h3>
+                <span style={badgeStyle}>{postsMes.length} conteúdos</span>
+              </div>
 
-            <div style={calendarGridStyle}>
-              {Array.from({ length: primeiroDia }).map((_, index) => (
-                <div key={`empty-${index}`} style={emptyDayStyle} />
-              ))}
+              <div style={mobileDaysListStyle}>
+                {Array.from({ length: diasNoMes }, (_, index) => index + 1).map((dia) => {
+                  const psDia = postsNoDia(dia)
+                  const dataDia = new Date(anoAtual, mesAtual, dia)
+                  const nomeSemana = DIAS_SEMANA[dataDia.getDay()]
+                  const isHoje =
+                    dia === hoje.getDate() &&
+                    mesAtual === hoje.getMonth() &&
+                    anoAtual === hoje.getFullYear()
 
-              {Array.from({ length: diasNoMes }, (_, index) => index + 1).map((dia) => {
-                const psDia = postsNoDia(dia)
-                const isHoje =
-                  dia === hoje.getDate() &&
-                  mesAtual === hoje.getMonth() &&
-                  anoAtual === hoje.getFullYear()
+                  return (
+                    <div key={dia} style={mobileDayStyle(isHoje)}>
+                      <div style={mobileDayHeaderStyle}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={mobileDayNumberStyle(isHoje)}>{dia}</span>
+                          <div>
+                            <div style={{ fontWeight: 900, fontSize: 14 }}>
+                              {nomeSemana}, {dia} de {MESES[mesAtual]}
+                            </div>
+                            <div style={{ fontSize: 12, opacity: 0.62 }}>
+                              {psDia.length === 0
+                                ? 'Sem conteúdos planeados'
+                                : `${psDia.length} conteúdo${psDia.length > 1 ? 's' : ''} planeado${psDia.length > 1 ? 's' : ''}`}
+                            </div>
+                          </div>
+                        </div>
 
-                return (
-                  <div key={dia} style={dayCellStyle(isHoje)}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={dayNumberStyle(isHoje)}>{dia}</span>
-                      <Plus size={12} style={{ opacity: 0.45 }} />
-                    </div>
+                        <Plus size={15} style={{ opacity: 0.5 }} />
+                      </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-                      {psDia.slice(0, 4).map((post) => (
-                        <button
-                          key={post.id}
-                          onClick={() => setPostAberto(post)}
-                          style={postMiniStyle(post)}
-                        >
-                          <span style={{ fontSize: 10, opacity: 0.75 }}>{post.hora_publicacao}</span>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {post.origem === 'equipa_adpulse' ? '🤖 ' : ''}
-                            {post.imagem_url ? '🖼️ ' : ''}
-                            {post.titulo}
-                          </span>
-                        </button>
-                      ))}
+                      {psDia.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                          {psDia.map((post) => (
+                            <button
+                              key={post.id}
+                              onClick={() => setPostAberto(post)}
+                              style={mobilePostCardStyle(post)}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                                <span style={{ fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {post.origem === 'equipa_adpulse' ? '🤖 ' : ''}
+                                  {post.imagem_url ? '🖼️ ' : ''}
+                                  {post.titulo}
+                                </span>
+                                <span style={{ fontSize: 11, opacity: 0.75, flexShrink: 0 }}>
+                                  {post.hora_publicacao}
+                                </span>
+                              </div>
 
-                      {psDia.length > 4 && (
-                        <div style={{ fontSize: 11, opacity: 0.65 }}>
-                          +{psDia.length - 4} mais
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+                                <span style={estadoBadgeStyle(post.estado)}>{post.estado}</span>
+                                <span style={miniMetaBadgeStyle}>{plataformaLabel(post.plataforma)}</span>
+                                <span style={miniMetaBadgeStyle}>{post.formato}</span>
+                              </div>
+                            </button>
+                          ))}
                         </div>
                       )}
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div style={calendarBoxStyle}>
+              <div style={weekHeaderStyle}>
+                {DIAS_SEMANA.map((dia) => (
+                  <div key={dia} style={weekCellStyle}>
+                    {dia}
+                  </div>
+                ))}
+              </div>
+
+              <div style={calendarGridStyle}>
+                {Array.from({ length: primeiroDia }).map((_, index) => (
+                  <div key={`empty-${index}`} style={emptyDayStyle} />
+                ))}
+
+                {Array.from({ length: diasNoMes }, (_, index) => index + 1).map((dia) => {
+                  const psDia = postsNoDia(dia)
+                  const isHoje =
+                    dia === hoje.getDate() &&
+                    mesAtual === hoje.getMonth() &&
+                    anoAtual === hoje.getFullYear()
+
+                  return (
+                    <div key={dia} style={dayCellStyle(isHoje)}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={dayNumberStyle(isHoje)}>{dia}</span>
+                        <Plus size={12} style={{ opacity: 0.45 }} />
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                        {psDia.slice(0, 4).map((post) => (
+                          <button
+                            key={post.id}
+                            onClick={() => setPostAberto(post)}
+                            style={postMiniStyle(post)}
+                          >
+                            <span style={{ fontSize: 10, opacity: 0.75 }}>{post.hora_publicacao}</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {post.origem === 'equipa_adpulse' ? '🤖 ' : ''}
+                              {post.imagem_url ? '🖼️ ' : ''}
+                              {post.titulo}
+                            </span>
+                          </button>
+                        ))}
+
+                        {psDia.length > 4 && (
+                          <div style={{ fontSize: 11, opacity: 0.65 }}>
+                            +{psDia.length - 4} mais
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           <div style={planningBoxStyle}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -468,25 +560,25 @@ ${post.imagem_url || 'Sem imagem'}`
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {postsOrdenados.map((post) => (
-                  <div key={post.id} style={planningRowStyle}>
-                    <div style={{ width: 130 }}>
+                  <div key={post.id} style={planningRowStyle(isMobile)}>
+                    <div style={planningDateStyle(isMobile)}>
                       <div style={{ fontWeight: 800, fontSize: 13 }}>{formatarData(post.criado_em)}</div>
                       <div style={{ opacity: 0.65, fontSize: 12 }}>{post.hora_publicacao}</div>
                     </div>
 
-                    <div style={{ width: 110 }}>
+                    <div style={planningPlatformStyle(isMobile)}>
                       <div style={{ fontWeight: 800, fontSize: 13 }}>{plataformaLabel(post.plataforma)}</div>
                       <div style={{ opacity: 0.65, fontSize: 12 }}>{post.formato}</div>
                     </div>
 
-                    <div style={{ width: 80 }}>
+                    <div style={planningImageWrapStyle(isMobile)}>
                       {post.imagem_url ? (
                         <img
                           src={post.imagem_url}
                           alt={post.titulo}
                           style={{
-                            width: 58,
-                            height: 58,
+                            width: isMobile ? 72 : 58,
+                            height: isMobile ? 72 : 58,
                             objectFit: 'cover',
                             borderRadius: 10,
                             border: '1px solid rgba(255,255,255,0.12)',
@@ -494,13 +586,13 @@ ${post.imagem_url || 'Sem imagem'}`
                           }}
                         />
                       ) : (
-                        <div style={noImageStyle}>
+                        <div style={noImageStyle(isMobile)}>
                           sem imagem
                         </div>
                       )}
                     </div>
 
-                    <div style={{ flex: 1, minWidth: 220 }}>
+                    <div style={planningTitleWrapStyle(isMobile)}>
                       <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>
                         {post.origem === 'equipa_adpulse' ? '🤖 ' : ''}
                         {post.titulo}
@@ -516,37 +608,39 @@ ${post.imagem_url || 'Sem imagem'}`
                       {post.estado}
                     </span>
 
-                    <button onClick={() => setPostAberto(post)} style={smallButtonStyle('#7c7bfa')}>
-                      <Eye size={13} />
-                      Ver
-                    </button>
+                    <div style={planningButtonsStyle(isMobile)}>
+                      <button onClick={() => setPostAberto(post)} style={smallButtonStyle('#7c7bfa', isMobile)}>
+                        <Eye size={13} />
+                        Ver
+                      </button>
 
-                    <button onClick={() => copiarPost(post)} style={smallButtonStyle('#151523')}>
-                      <Copy size={13} />
-                      Copiar
-                    </button>
+                      <button onClick={() => copiarPost(post)} style={smallButtonStyle('#151523', isMobile)}>
+                        <Copy size={13} />
+                        Copiar
+                      </button>
 
-                    <button
-                      onClick={() => publicarPost(post)}
-                      disabled={post.estado === 'publicado' || !post.imagem_url || publicandoId === post.id}
-                      style={{
-                        ...smallButtonStyle('#22c55e'),
-                        opacity: post.estado === 'publicado' || !post.imagem_url || publicandoId === post.id ? 0.55 : 1,
-                        cursor: post.estado === 'publicado' || !post.imagem_url || publicandoId === post.id ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      <Send size={13} />
-                      {publicandoId === post.id
-                        ? 'A publicar...'
-                        : post.estado === 'publicado'
-                          ? 'Publicado'
-                          : 'Publicar'}
-                    </button>
+                      <button
+                        onClick={() => publicarPost(post)}
+                        disabled={post.estado === 'publicado' || !post.imagem_url || publicandoId === post.id}
+                        style={{
+                          ...smallButtonStyle('#22c55e', isMobile),
+                          opacity: post.estado === 'publicado' || !post.imagem_url || publicandoId === post.id ? 0.55 : 1,
+                          cursor: post.estado === 'publicado' || !post.imagem_url || publicandoId === post.id ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        <Send size={13} />
+                        {publicandoId === post.id
+                          ? 'A publicar...'
+                          : post.estado === 'publicado'
+                            ? 'Publicado'
+                            : 'Publicar'}
+                      </button>
 
-                    <button onClick={() => apagarPost(post)} style={smallButtonStyle('#ef4444')}>
-                      <Trash2 size={13} />
-                      Remover
-                    </button>
+                      <button onClick={() => apagarPost(post)} style={smallButtonStyle('#ef4444', isMobile)}>
+                        <Trash2 size={13} />
+                        Remover
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -559,6 +653,7 @@ ${post.imagem_url || 'Sem imagem'}`
         <ModalConteudo
           post={postAberto}
           publicando={publicandoId === postAberto.id}
+          isMobile={isMobile}
           onFechar={() => setPostAberto(null)}
           onCopiar={copiarPost}
           onApagar={apagarPost}
@@ -572,6 +667,7 @@ ${post.imagem_url || 'Sem imagem'}`
 function ModalConteudo({
   post,
   publicando,
+  isMobile,
   onFechar,
   onCopiar,
   onApagar,
@@ -579,6 +675,7 @@ function ModalConteudo({
 }: {
   post: Post
   publicando: boolean
+  isMobile: boolean
   onFechar: () => void
   onCopiar: (post: Post) => void
   onApagar: (post: Post) => void
@@ -590,10 +687,10 @@ function ModalConteudo({
 
   return (
     <div style={modalOverlayStyle}>
-      <div style={modalBoxStyle}>
+      <div style={modalBoxStyle(isMobile)}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start' }}>
           <div>
-            <h3 style={{ fontSize: 22, fontWeight: 900, marginBottom: 6 }}>
+            <h3 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 900, marginBottom: 6 }}>
               {post.origem === 'equipa_adpulse' ? '🤖 Conteúdo da Equipa AdPulse' : 'Conteúdo planeado'}
             </h3>
             <p style={{ fontSize: 13, opacity: 0.7 }}>
@@ -613,7 +710,7 @@ function ModalConteudo({
               alt={post.titulo}
               style={{
                 width: '100%',
-                maxHeight: 560,
+                maxHeight: isMobile ? 420 : 560,
                 objectFit: 'contain',
                 background: '#050510',
                 display: 'block',
@@ -648,7 +745,7 @@ function ModalConteudo({
         )}
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: 16 }}>
-          <button onClick={() => onCopiar(post)} style={smallButtonStyle('#7c7bfa')}>
+          <button onClick={() => onCopiar(post)} style={smallButtonStyle('#7c7bfa', isMobile)}>
             <Copy size={14} />
             Copiar
           </button>
@@ -657,7 +754,7 @@ function ModalConteudo({
             onClick={() => onPublicar(post)}
             disabled={post.estado === 'publicado' || !post.imagem_url || publicando}
             style={{
-              ...smallButtonStyle('#22c55e'),
+              ...smallButtonStyle('#22c55e', isMobile),
               opacity: post.estado === 'publicado' || !post.imagem_url || publicando ? 0.55 : 1,
               cursor: post.estado === 'publicado' || !post.imagem_url || publicando ? 'not-allowed' : 'pointer',
             }}
@@ -670,7 +767,7 @@ function ModalConteudo({
                 : 'Publicar agora'}
           </button>
 
-          <button onClick={() => onApagar(post)} style={smallButtonStyle('#ef4444')}>
+          <button onClick={() => onApagar(post)} style={smallButtonStyle('#ef4444', isMobile)}>
             <Trash2 size={14} />
             Remover
           </button>
@@ -716,6 +813,7 @@ function dayCellStyle(isHoje: boolean): CSSProperties {
     borderRight: '1px solid rgba(255,255,255,0.08)',
     borderBottom: '1px solid rgba(255,255,255,0.08)',
     background: isHoje ? 'rgba(124,123,250,0.08)' : 'transparent',
+    minWidth: 0,
   }
 }
 
@@ -742,12 +840,29 @@ function postMiniStyle(post: Post): CSSProperties {
     gap: 5,
     alignItems: 'center',
     width: '100%',
+    minWidth: 0,
     border: `1px solid ${cor}55`,
     background: `${cor}22`,
     color: '#fff',
     padding: '5px 6px',
     borderRadius: 8,
     fontSize: 11,
+    cursor: 'pointer',
+    textAlign: 'left',
+  }
+}
+
+function mobilePostCardStyle(post: Post): CSSProperties {
+  const cor = COR_FORMATO[post.formato] || '#7c7bfa'
+
+  return {
+    width: '100%',
+    border: `1px solid ${cor}55`,
+    background: `${cor}18`,
+    color: '#fff',
+    padding: 12,
+    borderRadius: 14,
+    fontSize: 13,
     cursor: 'pointer',
     textAlign: 'left',
   }
@@ -768,12 +883,13 @@ function estadoBadgeStyle(estado: string): CSSProperties {
   }
 }
 
-function smallButtonStyle(background: string): CSSProperties {
+function smallButtonStyle(background: string, isMobile = false): CSSProperties {
   return {
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    padding: '8px 10px',
+    padding: isMobile ? '10px 12px' : '8px 10px',
     borderRadius: 10,
     border: background === '#151523' ? '1px solid rgba(255,255,255,0.12)' : 'none',
     background,
@@ -781,16 +897,157 @@ function smallButtonStyle(background: string): CSSProperties {
     fontSize: 12,
     fontWeight: 800,
     cursor: 'pointer',
+    flex: isMobile ? '1 1 calc(50% - 8px)' : undefined,
   }
 }
 
-const topbarStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
-  flexWrap: 'wrap',
-  marginBottom: 20,
+function topbarStyle(isMobile: boolean): CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: isMobile ? 'stretch' : 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    flexWrap: 'wrap',
+    marginBottom: 20,
+    flexDirection: isMobile ? 'column' : 'row',
+  }
+}
+
+function monthNavStyle(isMobile: boolean): CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+    justifyContent: isMobile ? 'space-between' : 'flex-start',
+    width: isMobile ? '100%' : undefined,
+  }
+}
+
+function actionsStyle(isMobile: boolean): CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+    width: isMobile ? '100%' : undefined,
+  }
+}
+
+function monthTitleStyle(isMobile: boolean): CSSProperties {
+  return {
+    minWidth: isMobile ? 140 : 190,
+    textAlign: 'center',
+    fontSize: isMobile ? 17 : 20,
+    fontWeight: 800,
+    flex: isMobile ? 1 : undefined,
+  }
+}
+
+function mobileDayStyle(isHoje: boolean): CSSProperties {
+  return {
+    borderRadius: 16,
+    border: isHoje
+      ? '1px solid rgba(124,123,250,0.55)'
+      : '1px solid rgba(255,255,255,0.10)',
+    background: isHoje ? 'rgba(124,123,250,0.12)' : '#141624',
+    padding: 14,
+  }
+}
+
+function mobileDayNumberStyle(isHoje: boolean): CSSProperties {
+  return {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: isHoje ? '#7c7bfa' : 'rgba(255,255,255,0.06)',
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 900,
+    flexShrink: 0,
+  }
+}
+
+function planningRowStyle(isMobile: boolean): CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: isMobile ? 'stretch' : 'center',
+    gap: isMobile ? 12 : 14,
+    flexWrap: 'wrap',
+    flexDirection: isMobile ? 'column' : 'row',
+    borderRadius: 14,
+    border: '1px solid rgba(255,255,255,0.08)',
+    background: '#141624',
+    padding: isMobile ? 14 : 12,
+    width: '100%',
+    boxSizing: 'border-box',
+  }
+}
+
+function planningDateStyle(isMobile: boolean): CSSProperties {
+  return {
+    width: isMobile ? '100%' : 130,
+  }
+}
+
+function planningPlatformStyle(isMobile: boolean): CSSProperties {
+  return {
+    width: isMobile ? '100%' : 110,
+  }
+}
+
+function planningImageWrapStyle(isMobile: boolean): CSSProperties {
+  return {
+    width: isMobile ? '100%' : 80,
+  }
+}
+
+function planningTitleWrapStyle(isMobile: boolean): CSSProperties {
+  return {
+    flex: 1,
+    minWidth: isMobile ? '100%' : 220,
+  }
+}
+
+function planningButtonsStyle(isMobile: boolean): CSSProperties {
+  return {
+    display: 'flex',
+    gap: 8,
+    flexWrap: 'wrap',
+    width: isMobile ? '100%' : undefined,
+  }
+}
+
+function noImageStyle(isMobile: boolean): CSSProperties {
+  return {
+    width: isMobile ? 72 : 58,
+    height: isMobile ? 72 : 58,
+    borderRadius: 10,
+    border: '1px dashed rgba(255,255,255,0.20)',
+    color: 'rgba(255,255,255,0.45)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 10,
+    textAlign: 'center',
+  }
+}
+
+function modalBoxStyle(isMobile: boolean): CSSProperties {
+  return {
+    width: '100%',
+    maxWidth: isMobile ? '100%' : 900,
+    maxHeight: isMobile ? '92vh' : '90vh',
+    overflowY: 'auto',
+    borderRadius: isMobile ? 16 : 20,
+    border: '1px solid rgba(255,255,255,0.12)',
+    background: '#0e0f17',
+    padding: isMobile ? 16 : 22,
+    color: '#fff',
+  }
 }
 
 const iconButtonStyle: CSSProperties = {
@@ -804,6 +1061,7 @@ const iconButtonStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   cursor: 'pointer',
+  flexShrink: 0,
 }
 
 const secondaryButtonStyle: CSSProperties = {
@@ -838,7 +1096,7 @@ const successStyle: CSSProperties = {
 
 const statsGridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
   gap: 12,
   marginBottom: 20,
 }
@@ -856,11 +1114,13 @@ const calendarBoxStyle: CSSProperties = {
   overflow: 'hidden',
   border: '1px solid rgba(255,255,255,0.10)',
   background: '#0e0f17',
+  width: '100%',
+  maxWidth: '100%',
 }
 
 const weekHeaderStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(7, 1fr)',
+  gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
   borderBottom: '1px solid rgba(255,255,255,0.10)',
 }
 
@@ -870,11 +1130,12 @@ const weekCellStyle: CSSProperties = {
   fontSize: 12,
   opacity: 0.7,
   fontWeight: 800,
+  minWidth: 0,
 }
 
 const calendarGridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(7, 1fr)',
+  gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
 }
 
 const emptyDayStyle: CSSProperties = {
@@ -883,6 +1144,46 @@ const emptyDayStyle: CSSProperties = {
   borderRight: '1px solid rgba(255,255,255,0.08)',
   borderBottom: '1px solid rgba(255,255,255,0.08)',
   background: 'rgba(0,0,0,0.18)',
+  minWidth: 0,
+}
+
+const mobileCalendarBoxStyle: CSSProperties = {
+  borderRadius: 18,
+  border: '1px solid rgba(255,255,255,0.10)',
+  background: '#0e0f17',
+  padding: 14,
+}
+
+const mobileCalendarHeaderStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 12,
+  marginBottom: 14,
+  flexWrap: 'wrap',
+}
+
+const mobileDaysListStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 12,
+}
+
+const mobileDayHeaderStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 10,
+}
+
+const miniMetaBadgeStyle: CSSProperties = {
+  padding: '5px 8px',
+  borderRadius: 999,
+  background: 'rgba(255,255,255,0.06)',
+  border: '1px solid rgba(255,255,255,0.10)',
+  color: 'rgba(255,255,255,0.78)',
+  fontSize: 11,
+  fontWeight: 800,
 }
 
 const planningBoxStyle: CSSProperties = {
@@ -891,6 +1192,9 @@ const planningBoxStyle: CSSProperties = {
   border: '1px solid rgba(255,255,255,0.10)',
   background: '#0e0f17',
   padding: 18,
+  width: '100%',
+  maxWidth: '100%',
+  boxSizing: 'border-box',
 }
 
 const badgeStyle: CSSProperties = {
@@ -903,30 +1207,6 @@ const badgeStyle: CSSProperties = {
   height: 'fit-content',
 }
 
-const planningRowStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 14,
-  flexWrap: 'wrap',
-  borderRadius: 14,
-  border: '1px solid rgba(255,255,255,0.08)',
-  background: '#141624',
-  padding: 12,
-}
-
-const noImageStyle: CSSProperties = {
-  width: 58,
-  height: 58,
-  borderRadius: 10,
-  border: '1px dashed rgba(255,255,255,0.20)',
-  color: 'rgba(255,255,255,0.45)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 10,
-  textAlign: 'center',
-}
-
 const modalOverlayStyle: CSSProperties = {
   position: 'fixed',
   inset: 0,
@@ -936,19 +1216,7 @@ const modalOverlayStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  padding: 18,
-}
-
-const modalBoxStyle: CSSProperties = {
-  width: '100%',
-  maxWidth: 900,
-  maxHeight: '90vh',
-  overflowY: 'auto',
-  borderRadius: 20,
-  border: '1px solid rgba(255,255,255,0.12)',
-  background: '#0e0f17',
-  padding: 22,
-  color: '#fff',
+  padding: 12,
 }
 
 const closeButtonStyle: CSSProperties = {
@@ -962,6 +1230,7 @@ const closeButtonStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   cursor: 'pointer',
+  flexShrink: 0,
 }
 
 const modalImageWrapStyle: CSSProperties = {
@@ -986,7 +1255,7 @@ const modalNoImageStyle: CSSProperties = {
 
 const modalInfoGridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
   gap: 12,
 }
 
