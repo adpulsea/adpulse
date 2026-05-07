@@ -1,6 +1,6 @@
 // ============================================
-// AdPulse — Layout do Painel (Sidebar + Topbar)
-// Com sidebar mobile corrigida + Plano Interno/Admin sem Stripe
+// AdPulse — Layout do Painel
+// Sidebar mobile corrigida + botão flutuante + Plano Interno/Admin
 // ============================================
 
 import { useState, useEffect } from 'react'
@@ -230,6 +230,22 @@ export default function LayoutPainel({ children, titulo }: Props) {
           style={{ background: 'rgba(0,0,0,0.6)' }}
           onClick={() => setSidebarAberta(false)}
         />
+      )}
+
+      {!sidebarAberta && (
+        <button
+          className="fixed bottom-5 left-5 z-50 md:hidden w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl"
+          onClick={() => setSidebarAberta(true)}
+          style={{
+            background: 'linear-gradient(135deg, #7c7bfa, #f472b6)',
+            color: '#fff',
+            border: '1px solid rgba(255,255,255,0.18)',
+            boxShadow: '0 18px 50px rgba(124,123,250,0.35)',
+          }}
+          aria-label="Abrir menu"
+        >
+          <Menu size={22} />
+        </button>
       )}
 
       <aside
