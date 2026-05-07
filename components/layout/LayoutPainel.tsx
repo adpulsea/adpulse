@@ -1,6 +1,6 @@
 // ============================================
 // AdPulse — Layout do Painel (Sidebar + Topbar)
-// Com suporte para Plano Interno/Admin sem Stripe
+// Com sidebar mobile corrigida + Plano Interno/Admin sem Stripe
 // ============================================
 
 import { useState, useEffect } from 'react'
@@ -105,6 +105,10 @@ export default function LayoutPainel({ children, titulo }: Props) {
 
     carregarPlano()
   }, [utilizador])
+
+  useEffect(() => {
+    setSidebarAberta(false)
+  }, [router.pathname])
 
   const iniciarCheckout = async (planoEscolhido: 'pro' | 'agencia') => {
     if (!utilizador?.email || !utilizador?.id) {
@@ -229,11 +233,12 @@ export default function LayoutPainel({ children, titulo }: Props) {
       )}
 
       <aside
-        className="fixed left-0 top-0 bottom-0 z-40 w-64 flex flex-col transition-transform duration-300"
+        className={`fixed left-0 top-0 bottom-0 z-40 w-64 flex flex-col transition-transform duration-300 ease-in-out ${
+          sidebarAberta ? 'translate-x-0' : '-translate-x-full'
+        } md:translate-x-0`}
         style={{
           background: 'var(--cor-card)',
           borderRight: '1px solid var(--cor-borda)',
-          transform: sidebarAberta ? 'translateX(0)' : undefined,
         }}
       >
         <div
@@ -519,25 +524,30 @@ export default function LayoutPainel({ children, titulo }: Props) {
 
       <div className="flex-1 flex flex-col min-w-0 md:ml-64">
         <header
-          className="sticky top-0 z-20 flex items-center justify-between px-6 py-4"
+          className="sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 py-4"
           style={{
             background: 'rgba(10, 10, 15, 0.85)',
             backdropFilter: 'blur(12px)',
             borderBottom: '1px solid var(--cor-borda)',
           }}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               className="md:hidden p-2 rounded-lg"
               onClick={() => setSidebarAberta(true)}
-              style={{ color: 'var(--cor-texto-muted)' }}
+              style={{
+                color: 'var(--cor-texto-muted)',
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid var(--cor-borda)',
+              }}
+              aria-label="Abrir menu"
             >
               <Menu size={20} />
             </button>
 
             {titulo && (
               <h1
-                className="text-lg font-semibold"
+                className="text-base sm:text-lg font-semibold truncate"
                 style={{ fontFamily: 'var(--fonte-display)' }}
               >
                 {titulo}
@@ -561,7 +571,7 @@ export default function LayoutPainel({ children, titulo }: Props) {
           </div>
         </header>
 
-        <main className="flex-1 p-6 overflow-auto">{children}</main>
+        <main className="flex-1 p-4 sm:p-6 overflow-auto">{children}</main>
       </div>
 
       <ChatWidget />
