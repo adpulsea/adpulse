@@ -1,6 +1,6 @@
 // ============================================
 // AdPulse — Detalhe da Campanha
-// Versão estável para voltar a abrir campanhas
+// Versão estável + guardar conteúdo sem título obrigatório
 // ============================================
 
 import Head from 'next/head'
@@ -15,7 +15,6 @@ import {
   Loader,
   CheckCircle,
   CalendarDays,
-  Sparkles,
 } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import { useAuth } from '@/hooks/useAuth'
@@ -75,27 +74,31 @@ const COR_ESTADO: Record<string, string> = {
   publicado: '#22c55e',
 }
 
+function limparTexto(valor: string | null | undefined) {
+  return String(valor || '').trim()
+}
+
 function criarTituloAutomatico(form: typeof FORM_INICIAL) {
-  const base =
-    form.titulo.trim() ||
-    form.texto.trim() ||
-    form.legenda.trim() ||
-    form.hashtags.trim() ||
-    form.imagem_url.trim()
+  const origem =
+    limparTexto(form.titulo) ||
+    limparTexto(form.texto) ||
+    limparTexto(form.legenda) ||
+    limparTexto(form.hashtags) ||
+    limparTexto(form.imagem_url)
 
-  if (!base) return 'Conteúdo sem título'
+  if (!origem) return 'Conteúdo sem título'
 
-  const limpo = base.replace(/\s+/g, ' ').trim()
-  return limpo.length > 60 ? `${limpo.slice(0, 60)}...` : limpo
+  const textoLimpo = origem.replace(/\s+/g, ' ')
+  return textoLimpo.length > 60 ? `${textoLimpo.slice(0, 60)}...` : textoLimpo
 }
 
 function temConteudo(form: typeof FORM_INICIAL) {
   return Boolean(
-    form.titulo.trim() ||
-      form.texto.trim() ||
-      form.legenda.trim() ||
-      form.hashtags.trim() ||
-      form.imagem_url.trim()
+    limparTexto(form.titulo) ||
+      limparTexto(form.texto) ||
+      limparTexto(form.legenda) ||
+      limparTexto(form.hashtags) ||
+      limparTexto(form.imagem_url)
   )
 }
 
@@ -187,15 +190,15 @@ export default function DetalheCampanha() {
         campanha_id: campanhaId,
         tipo: form.tipo,
         titulo: tituloFinal,
-        texto: form.texto.trim(),
-        legenda: form.legenda.trim(),
-        hashtags: form.hashtags.trim(),
+        texto: limparTexto(form.texto),
+        legenda: limparTexto(form.legenda),
+        hashtags: limparTexto(form.hashtags),
         plataforma: form.plataforma,
         formato: form.formato,
         data_publicacao: form.data_publicacao || null,
         hora_publicacao: form.hora_publicacao,
         estado: form.estado,
-        imagem_url: form.imagem_url.trim(),
+        imagem_url: limparTexto(form.imagem_url),
       })
       .select('*')
       .single()
