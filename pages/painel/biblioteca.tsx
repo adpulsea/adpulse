@@ -1,5 +1,5 @@
 // ============================================
-// AdPulse — Biblioteca de Conteúdos
+// AdPulse — Biblioteca de Conteúdos e Imagens
 // ============================================
 
 import Head from 'next/head'
@@ -12,6 +12,7 @@ import {
   Search,
   Hash,
   FileText,
+  ImageIcon,
 } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import { useAuth } from '@/hooks/useAuth'
@@ -27,9 +28,21 @@ type ConteudoGuardado = {
   modo: string
   hook: string
   legenda: string
-  hashtags: string[]
-  slides: { tipo: string; conteudo: string }[]
+  hashtags: string[] | string
+  slides: { tipo: string; conteudo: string }[] | null
+  imagem_url?: string | null
+  origem?: string | null
+  campanha_id?: string | null
   criado_em: string
+}
+
+function normalizarHashtags(valor: string[] | string | null | undefined) {
+  if (Array.isArray(valor)) return valor
+  if (!valor) return []
+  return String(valor)
+    .split(' ')
+    .map((tag) => tag.trim())
+    .filter(Boolean)
 }
 
 export default function BibliotecaPage() {
@@ -44,18 +57,23 @@ export default function BibliotecaPage() {
   useEffect(() => {
     if (!utilizador) return
     carregarConteudos()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [utilizador])
 
   async function carregarConteudos() {
+    if (!utilizador) return
+
     setCarregando(true)
     setErro('')
 
     const { data, error } = await supabase
       .from('conteudos_guardados')
       .select('*')
+      .eq('utilizador_id', utilizador.id)
       .order('criado_em', { ascending: false })
 
     if (error) {
+      console.error(error)
       setErro('Erro ao carregar biblioteca.')
       setCarregando(false)
       return
@@ -92,7 +110,9 @@ export default function BibliotecaPage() {
   }
 
   const conteudosFiltrados = conteudos.filter((item) => {
-    const texto = `${item.topico} ${item.hook} ${item.legenda} ${item.formato} ${item.plataforma} ${item.modo}`.toLowerCase()
+    const hashtagsTexto = normalizarHashtags(item.hashtags).join(' ')
+    const texto = `${item.topico || ''} ${item.hook || ''} ${item.legenda || ''} ${item.formato || ''} ${item.plataforma || ''} ${item.modo || ''} ${item.origem || ''} ${hashtagsTexto}`.toLowerCase()
+
     return texto.includes(pesquisa.toLowerCase())
   })
 
@@ -134,7 +154,7 @@ export default function BibliotecaPage() {
                   className="text-sm mt-1"
                   style={{ color: 'var(--cor-texto-muted)' }}
                 >
-                  Todos os conteúdos guardados no AI Content Studio.
+                  Conteúdos, legendas e imagens guardadas na AdPulse.
                 </p>
               </div>
             </div>
@@ -151,7 +171,7 @@ export default function BibliotecaPage() {
               <input
                 value={pesquisa}
                 onChange={(e) => setPesquisa(e.target.value)}
-                placeholder="Pesquisar por tópico, formato, plataforma ou legenda..."
+                placeholder="Pesquisar por tópico, formato, plataforma, legenda ou imagem..."
                 className="input-campo pl-11"
               />
             </div>
@@ -196,17 +216,24 @@ export default function BibliotecaPage() {
                 className="text-sm"
                 style={{ color: 'var(--cor-texto-muted)' }}
               >
-                Guarda conteúdos no AI Content Studio para aparecerem aqui.
+                Guarda conteúdos ou gera imagens nas campanhas para aparecerem aqui.
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               {conteudosFiltrados.map((item) => {
-                const textoCompleto = `${item.hook}
+                const hashtags = normalizarHashtags(item.hashtags)
+                const slides = item.slides || []
 
-${item.legenda}
+                const textoCompleto = `${item.hook || ''}
 
-${(item.hashtags || []).join(' ')}`
+${item.legenda || ''}
+
+${hashtags.join(' ')}
+
+${item.imagem_url ? `Imagem: ${item.imagem_url}` : ''}`
+
+                const eImagem = Boolean(item.imagem_url)
 
                 return (
                   <div key={item.id} className="card flex flex-col gap-4">
@@ -214,13 +241,14 @@ ${(item.hashtags || []).join(' ')}`
                       <div>
                         <div className="flex flex-wrap gap-2 mb-3">
                           <span
-                            className="text-xs px-2.5 py-1 rounded-full"
+                            className="text-xs px-2.5 py-1 rounded-full flex items-center gap-1"
                             style={{
                               background: 'rgba(124,123,250,0.12)',
                               color: 'var(--cor-marca)',
                               border: '1px solid rgba(124,123,250,0.25)',
                             }}
                           >
+                            {eImagem && <ImageIcon size={12} />}
                             {item.formato || 'conteúdo'}
                           </span>
 
@@ -243,7 +271,9 @@ ${(item.hashtags || []).join(' ')}`
                               border: '1px solid rgba(244,114,182,0.25)',
                             }}
                           >
-                            {item.modo || 'normal'}
+                            {item.origem === 'campanha'
+                              ? 'campanha'
+                              : item.modo || 'normal'}
                           </span>
                         </div>
 
@@ -277,29 +307,52 @@ ${(item.hashtags || []).join(' ')}`
                       </button>
                     </div>
 
-                    <div>
-                      <p
-                        className="text-xs font-semibold mb-1"
-                        style={{ color: 'var(--cor-marca)' }}
-                      >
-                        Hook
-                      </p>
-                      <p className="text-sm leading-relaxed">{item.hook}</p>
-                    </div>
+                    {item.imagem_url && (
+                      <div>
+                        <img
+                          src={item.imagem_url}
+                          alt={item.topico || 'Imagem gerada'}
+                          style={{
+                            width: '100%',
+                            maxHeight: 420,
+                            objectFit: 'contain',
+                            borderRadius: 16,
+                            border: '1px solid var(--cor-borda)',
+                            background: '#050510',
+                          }}
+                        />
+                      </div>
+                    )}
 
-                    <div>
-                      <p
-                        className="text-xs font-semibold mb-1"
-                        style={{ color: 'var(--cor-texto-muted)' }}
-                      >
-                        Legenda
-                      </p>
-                      <p className="text-sm leading-relaxed whitespace-pre-line">
-                        {item.legenda}
-                      </p>
-                    </div>
+                    {item.hook && (
+                      <div>
+                        <p
+                          className="text-xs font-semibold mb-1"
+                          style={{ color: 'var(--cor-marca)' }}
+                        >
+                          Hook / Texto criativo
+                        </p>
+                        <p className="text-sm leading-relaxed whitespace-pre-line">
+                          {item.hook}
+                        </p>
+                      </div>
+                    )}
 
-                    {(item.hashtags || []).length > 0 && (
+                    {item.legenda && (
+                      <div>
+                        <p
+                          className="text-xs font-semibold mb-1"
+                          style={{ color: 'var(--cor-texto-muted)' }}
+                        >
+                          Legenda
+                        </p>
+                        <p className="text-sm leading-relaxed whitespace-pre-line">
+                          {item.legenda}
+                        </p>
+                      </div>
+                    )}
+
+                    {hashtags.length > 0 && (
                       <div>
                         <p
                           className="text-xs font-semibold mb-2 flex items-center gap-1"
@@ -310,7 +363,7 @@ ${(item.hashtags || []).join(' ')}`
                         </p>
 
                         <div className="flex flex-wrap gap-2">
-                          {item.hashtags.map((tag, index) => (
+                          {hashtags.map((tag, index) => (
                             <span
                               key={index}
                               className="text-xs px-2 py-1 rounded-full"
@@ -327,7 +380,7 @@ ${(item.hashtags || []).join(' ')}`
                       </div>
                     )}
 
-                    {(item.slides || []).length > 0 && (
+                    {slides.length > 0 && (
                       <div>
                         <p
                           className="text-xs font-semibold mb-2"
@@ -337,7 +390,7 @@ ${(item.hashtags || []).join(' ')}`
                         </p>
 
                         <div className="flex flex-col gap-2">
-                          {item.slides.map((slide, index) => (
+                          {slides.map((slide, index) => (
                             <div
                               key={index}
                               className="p-3 rounded-xl"
