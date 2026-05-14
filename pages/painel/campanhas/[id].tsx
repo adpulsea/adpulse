@@ -1,6 +1,6 @@
 // ============================================
 // AdPulse — Detalhe da Campanha
-// Versão estável + guardar conteúdo sem título obrigatório
+// Versão estável + guardar sem título + gerar imagem
 // ============================================
 
 import Head from 'next/head'
@@ -15,6 +15,7 @@ import {
   Loader,
   CheckCircle,
   CalendarDays,
+  Sparkles,
 } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import { useAuth } from '@/hooks/useAuth'
@@ -102,6 +103,17 @@ function temConteudo(form: typeof FORM_INICIAL) {
   )
 }
 
+function extrairImagemDaResposta(data: any) {
+  return (
+    data?.url ||
+    data?.imagem_url ||
+    data?.imageUrl ||
+    data?.image_url ||
+    data?.data?.[0]?.url ||
+    ''
+  )
+}
+
 export default function DetalheCampanha() {
   const router = useRouter()
   const { id } = router.query
@@ -116,6 +128,9 @@ export default function DetalheCampanha() {
   const [salvando, setSalvando] = useState(false)
   const [mensagem, setMensagem] = useState('')
   const [form, setForm] = useState(FORM_INICIAL)
+
+  const [gerandoImagem, setGerandoImagem] = useState(false)
+  const [gerandoImagemConteudoId, setGerandoImagemConteudoId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!utilizador || !campanhaId) return
@@ -169,6 +184,198 @@ export default function DetalheCampanha() {
     }
 
     setCarregando(false)
+  }
+
+  const criarPromptImagem = ({
+    titulo,
+    texto,
+    legenda,
+    plataforma,
+    formato,
+  }: {
+    titulo?: string | null
+    texto?: string | null
+    legenda?: string | null
+    plataforma?: string | null
+    formato?: string | null
+  }) => {
+    const textoPrincipal =
+      limparTexto(texto) ||
+      limparTexto(titulo) ||
+      limparTexto(legenda)
+
+    return `
+Cria uma imagem premium para redes sociais da marca AdPulse.
+
+Formato visual:
+- imagem quadrada 1:1 ou vertical 4:5
+- fundo escuro quase preto / navy profundo
+- estética SaaS premium
+- neon roxo, violeta e rosa
+- glow subtil
+- cards arredondados tipo interface digital
+- visual moderno, tecnológico e limpo
+- alto contraste
+- tipografia grande, legível e central
+- composição profissional para Instagram
+- estilo de plataforma de IA para criação de conteúdo
+
+Marca:
+AdPulse é uma plataforma com IA para criar posts, imagens e calendário de conteúdo para redes sociais.
+
+Texto principal que deve aparecer na imagem:
+"${textoPrincipal}"
+
+Campanha:
+"${campanha?.nome || 'Campanha AdPulse'}"
+
+Descrição da campanha:
+"${campanha?.descricao || ''}"
+
+Plataforma:
+${plataforma || 'Instagram'}
+
+Formato:
+${formato || 'Post'}
+
+Regras:
+- Não uses texto pequeno.
+- Não uses elementos confusos.
+- Não inventes preços.
+- Não coloques informação que não foi pedida.
+- Mantém a imagem limpa, profissional e pronta para publicação.
+`
+  }
+
+  const gerarImagemDoFormulario = async () => {
+    const textoPrincipal =
+      limparTexto(form.texto) ||
+      limparTexto(form.titulo) ||
+      limparTexto(form.legenda)
+
+    if (!textoPrincipal) {
+      alert('Escreve primeiro o texto para imagem, título ou legenda.')
+      return
+    }
+
+    setGerandoImagem(true)
+
+    try {
+      const resposta = await fetch('/api/ia/gerar-imagem', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: criarPromptImagem({
+            titulo: form.titulo,
+            texto: form.texto,
+            legenda: form.legenda,
+            plataforma: form.plataforma,
+            formato: form.formato,
+          }),
+          texto: textoPrincipal,
+          plataforma: form.plataforma,
+          formato: form.formato,
+          estilo: 'adpulse_premium_dark_neon',
+        }),
+      })
+
+      const data = await resposta.json()
+
+      if (!resposta.ok) {
+        throw new Error(data?.erro || data?.error || 'Erro ao gerar imagem.')
+      }
+
+      const imagem = extrairImagemDaResposta(data)
+
+      if (!imagem) {
+        throw new Error('A imagem foi gerada, mas não foi devolvida uma URL válida.')
+      }
+
+      setForm((atual) => ({
+        ...atual,
+        imagem_url: imagem,
+      }))
+
+      mostrarMensagem('Imagem gerada e adicionada ao conteúdo.')
+    } catch (error: any) {
+      alert(error?.message || 'Erro ao gerar imagem.')
+    } finally {
+      setGerandoImagem(false)
+    }
+  }
+
+  const gerarImagemParaConteudo = async (conteudo: ConteudoCampanha) => {
+    const textoPrincipal =
+      limparTexto(conteudo.texto) ||
+      limparTexto(conteudo.titulo) ||
+      limparTexto(conteudo.legenda)
+
+    if (!textoPrincipal) {
+      alert('Este conteúdo não tem texto suficiente para gerar imagem.')
+      return
+    }
+
+    setGerandoImagemConteudoId(conteudo.id)
+
+    try {
+      const resposta = await fetch('/api/ia/gerar-imagem', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: criarPromptImagem({
+            titulo: conteudo.titulo,
+            texto: conteudo.texto,
+            legenda: conteudo.legenda,
+            plataforma: conteudo.plataforma,
+            formato: conteudo.formato,
+          }),
+          texto: textoPrincipal,
+          plataforma: conteudo.plataforma || 'instagram',
+          formato: conteudo.formato || 'Post',
+          estilo: 'adpulse_premium_dark_neon',
+        }),
+      })
+
+      const data = await resposta.json()
+
+      if (!resposta.ok) {
+        throw new Error(data?.erro || data?.error || 'Erro ao gerar imagem.')
+      }
+
+      const imagem = extrairImagemDaResposta(data)
+
+      if (!imagem) {
+        throw new Error('A imagem foi gerada, mas não foi devolvida uma URL válida.')
+      }
+
+      const { data: atualizado, error } = await supabase
+        .from('campanha_conteudos')
+        .update({
+          imagem_url: imagem,
+        })
+        .eq('id', conteudo.id)
+        .eq('utilizador_id', utilizador?.id)
+        .select('*')
+        .single()
+
+      if (error) {
+        throw new Error(error.message || 'Imagem gerada, mas não foi possível guardar.')
+      }
+
+      setConteudos((atuais) =>
+        atuais.map((item) => (item.id === conteudo.id ? atualizado : item))
+      )
+
+      mostrarMensagem('Imagem gerada e guardada no conteúdo.')
+    } catch (error: any) {
+      alert(error?.message || 'Erro ao gerar imagem.')
+    } finally {
+      setGerandoImagemConteudoId(null)
+    }
   }
 
   const guardarConteudo = async () => {
@@ -493,6 +700,44 @@ ${conteudo.imagem_url || 'Sem imagem'}`
                   onChange={(e) => setForm({ ...form, texto: e.target.value })}
                   placeholder="Texto que vai aparecer na imagem..."
                 />
+
+                <div
+                  className="mt-3 rounded-xl p-3 flex items-start justify-between gap-3 flex-wrap"
+                  style={{
+                    background: 'rgba(124,123,250,0.08)',
+                    border: '1px solid rgba(124,123,250,0.20)',
+                  }}
+                >
+                  <div>
+                    <p className="text-sm font-semibold flex items-center gap-2">
+                      <Sparkles size={15} style={{ color: 'var(--cor-marca)' }} />
+                      Gerar imagem com visual AdPulse
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--cor-texto-muted)' }}>
+                      Usa o texto criativo, título ou legenda para criar a imagem.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={gerarImagemDoFormulario}
+                    disabled={gerandoImagem}
+                    className="btn-primario"
+                    style={gerandoImagem ? { opacity: 0.7 } : {}}
+                  >
+                    {gerandoImagem ? (
+                      <>
+                        <Loader size={14} className="animate-spin" />
+                        A gerar...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={15} />
+                        Gerar imagem
+                      </>
+                    )}
+                  </button>
+                </div>
               </Campo>
 
               <Campo label="Legenda">
@@ -520,8 +765,26 @@ ${conteudo.imagem_url || 'Sem imagem'}`
                   className="input-campo"
                   value={form.imagem_url}
                   onChange={(e) => setForm({ ...form, imagem_url: e.target.value })}
-                  placeholder="Cola aqui a URL da imagem se existir"
+                  placeholder="A imagem gerada aparece aqui automaticamente"
                 />
+
+                {form.imagem_url && (
+                  <div className="mt-3">
+                    <p className="text-xs mb-2" style={{ color: 'var(--cor-texto-muted)' }}>
+                      Pré-visualização
+                    </p>
+                    <img
+                      src={form.imagem_url}
+                      alt={form.titulo || 'Imagem gerada'}
+                      className="rounded-xl max-h-80 object-contain"
+                      style={{
+                        border: '1px solid var(--cor-borda)',
+                        background: '#050510',
+                        maxWidth: '100%',
+                      }}
+                    />
+                  </div>
+                )}
               </Campo>
 
               <div className="flex gap-3 justify-end flex-wrap mt-5">
@@ -603,6 +866,26 @@ ${conteudo.imagem_url || 'Sem imagem'}`
                         <option value="publicado">publicado</option>
                       </select>
 
+                      <button
+                        type="button"
+                        onClick={() => gerarImagemParaConteudo(conteudo)}
+                        disabled={gerandoImagemConteudoId === conteudo.id}
+                        className="btn-primario"
+                        style={gerandoImagemConteudoId === conteudo.id ? { opacity: 0.7 } : {}}
+                      >
+                        {gerandoImagemConteudoId === conteudo.id ? (
+                          <>
+                            <Loader size={14} className="animate-spin" />
+                            A gerar...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={14} />
+                            Gerar imagem
+                          </>
+                        )}
+                      </button>
+
                       <button onClick={() => copiarTudo(conteudo)} className="btn-secundario">
                         <Copy size={14} />
                         Copiar tudo
@@ -638,7 +921,7 @@ ${conteudo.imagem_url || 'Sem imagem'}`
                     />
                   </div>
 
-                  {conteudo.imagem_url && (
+                  {conteudo.imagem_url ? (
                     <div className="mt-4">
                       <p className="text-xs mb-2" style={{ color: 'var(--cor-texto-muted)' }}>
                         Imagem
@@ -653,6 +936,41 @@ ${conteudo.imagem_url || 'Sem imagem'}`
                           maxWidth: '100%',
                         }}
                       />
+                    </div>
+                  ) : (
+                    <div
+                      className="mt-4 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap"
+                      style={{
+                        background: 'rgba(244,114,182,0.06)',
+                        border: '1px dashed rgba(244,114,182,0.25)',
+                      }}
+                    >
+                      <div>
+                        <p className="text-sm font-semibold">Este conteúdo ainda não tem imagem.</p>
+                        <p className="text-xs mt-1" style={{ color: 'var(--cor-texto-muted)' }}>
+                          Gera uma imagem a partir do texto criativo, título ou legenda.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => gerarImagemParaConteudo(conteudo)}
+                        disabled={gerandoImagemConteudoId === conteudo.id}
+                        className="btn-primario"
+                        style={gerandoImagemConteudoId === conteudo.id ? { opacity: 0.7 } : {}}
+                      >
+                        {gerandoImagemConteudoId === conteudo.id ? (
+                          <>
+                            <Loader size={14} className="animate-spin" />
+                            A gerar...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={14} />
+                            Gerar imagem
+                          </>
+                        )}
+                      </button>
                     </div>
                   )}
                 </div>
