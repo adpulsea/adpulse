@@ -1,6 +1,6 @@
 // ============================================
 // AdPulse — Layout do Painel
-// Sidebar mobile corrigida + botão flutuante + Plano Interno/Admin
+// Sidebar mobile corrigida + botão flutuante + Plano Interno/Admin + Clientes
 // ============================================
 
 import { useState, useEffect } from 'react'
@@ -29,6 +29,7 @@ import {
   Frame,
   HeartHandshake,
   ShieldCheck,
+  Building2,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { fazerLogout } from '@/lib/auth'
@@ -44,6 +45,7 @@ const ITENS_NAV = [
   { label: 'Viral Lab', href: '/painel/viral-lab', icone: TrendingUp },
   { label: 'Creator Analyzer', href: '/painel/analyzer', icone: BarChart2 },
   { label: 'Campanhas', href: '/painel/campanhas', icone: FolderOpen },
+  { label: 'Clientes', href: '/painel/clientes', icone: Building2 },
   { label: 'Automação', href: '/painel/automacao', icone: Workflow },
   { label: 'Workspaces', href: '/painel/workspaces', icone: Layers },
   { label: 'Agentes Cliente', href: '/painel/agentes-cliente', icone: HeartHandshake },
@@ -290,7 +292,13 @@ export default function LayoutPainel({ children, titulo }: Props) {
           <div className="flex flex-col gap-1">
             {ITENS_NAV.map((item) => {
               const Icone = item.icone
-              const ativo = router.pathname === item.href
+
+              const ativo =
+                item.href === '/painel'
+                  ? router.pathname === '/painel'
+                  : router.pathname === item.href ||
+                    router.pathname.startsWith(`${item.href}/`)
+
               const isNovo = [
                 '/painel/agentes',
                 '/painel/automacao',
@@ -299,6 +307,7 @@ export default function LayoutPainel({ children, titulo }: Props) {
                 '/painel/equipa',
                 '/painel/templates',
                 '/painel/fundos',
+                '/painel/clientes',
               ].includes(item.href)
 
               return (
