@@ -1,3 +1,8 @@
+// ============================================
+// AdPulse — Equipa AdPulse
+// Imagens dos agentes guardadas automaticamente na Biblioteca
+// ============================================
+
 import Head from 'next/head'
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -120,6 +125,48 @@ export default function AgentesIA() {
   const mostrarMensagem = (texto: string) => {
     setMensagem(texto)
     setTimeout(() => setMensagem(''), 4500)
+  }
+
+  const guardarImagemNaBiblioteca = async (tarefa: Tarefa, imagem: string) => {
+    if (!imagem) return
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    const utilizadorId = session?.user?.id
+
+    if (!utilizadorId) {
+      console.warn('Não foi possível guardar imagem na biblioteca: sessão não encontrada.')
+      return
+    }
+
+    const topico =
+      tarefa.titulo ||
+      tarefa.texto_criativo ||
+      tarefa.legenda ||
+      `Imagem criada por ${tarefa.agente_nome}`
+
+    const { error } = await supabase.from('conteudos_guardados').insert({
+      utilizador_id: utilizadorId,
+      topico,
+      formato: tarefa.formato || 'Imagem IA',
+      plataforma: (tarefa.plataforma || plataforma || 'instagram').toLowerCase(),
+      tom: 'AdPulse',
+      modo: 'imagem',
+      hook: tarefa.texto_criativo || tarefa.titulo || '',
+      legenda: tarefa.legenda || tarefa.conteudo || '',
+      hashtags: hashtagsParaArray(tarefa.hashtags),
+      slides: [],
+      imagem_url: imagem,
+      origem: 'equipa_adpulse',
+      agente_nome: tarefa.agente_nome,
+      tarefa_id: tarefa.id,
+    })
+
+    if (error) {
+      console.error('Erro ao guardar imagem da Equipa AdPulse na biblioteca:', error)
+    }
   }
 
   const criarPlaceholderRapido = (): Tarefa => ({
@@ -303,7 +350,13 @@ export default function AgentesIA() {
         throw new Error(data?.erro || data?.error || 'Erro ao gerar imagem.')
       }
 
-      const imagem = data?.imagem_url || data?.imagem
+      const imagem =
+        data?.imagem_url ||
+        data?.imagem ||
+        data?.url ||
+        data?.imageUrl ||
+        data?.image_url ||
+        ''
 
       if (!imagem) {
         throw new Error('A API não devolveu imagem.')
@@ -314,7 +367,9 @@ export default function AgentesIA() {
         [tarefa.id]: imagem,
       }))
 
-      mostrarMensagem('Imagem relacionada criada e guardada com URL pública.')
+      await guardarImagemNaBiblioteca(tarefa, imagem)
+
+      mostrarMensagem('Imagem criada e guardada automaticamente na Biblioteca.')
     } catch (e: any) {
       alert(e?.message || 'Erro ao gerar imagem.')
     } finally {
@@ -563,7 +618,7 @@ ${imagens[tarefa.id] || 'Sem imagem.'}`
                           <InfoBox label="Formato" value={tarefa.formato || 'Post'} />
                           <InfoBox label="Plataforma" value={tarefa.plataforma || plataforma} />
                           <InfoBox label="Hora sugerida" value={tarefa.hora_sugerida || '16:25'} />
-                          <InfoBox label="Imagem" value={temImagem ? 'Gerada' : 'Opcional'} />
+                          <InfoBox label="Imagem" value={temImagem ? 'Gerada e na Biblioteca' : 'Opcional'} />
                         </div>
 
                         <ContentBox label="Conteúdo completo" value={tarefa.conteudo} />
