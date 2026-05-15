@@ -1,6 +1,6 @@
 // ============================================
 // AdPulse — Gestão de Campanhas
-// Página principal estável e clicável
+// Página principal + ligação a Clientes / Plano Agência
 // ============================================
 
 import Head from 'next/head'
@@ -12,6 +12,8 @@ import {
   Trash2,
   Loader,
   ArrowRight,
+  ArrowLeft,
+  Building2,
 } from 'lucide-react'
 import LayoutPainel from '@/components/layout/LayoutPainel'
 import { supabase } from '@/lib/supabase'
@@ -23,7 +25,16 @@ type Campanha = {
   descricao: string | null
   plataformas: string[] | null
   total_posts: number | null
+  cliente_id?: string | null
   criado_em: string
+}
+
+type Cliente = {
+  id: string
+  nome: string
+  nicho: string | null
+  descricao: string | null
+  plataformas: string[] | null
 }
 
 const COR_PLATAFORMA: Record<string, string> = {
@@ -31,12 +42,18 @@ const COR_PLATAFORMA: Record<string, string> = {
   tiktok: '#00f2ea',
   youtube: '#FF0000',
   linkedin: '#0077B5',
+  facebook: '#1877F2',
 }
 
 export default function Campanhas() {
   const router = useRouter()
   const { utilizador } = useAuth()
 
+  const clienteIdQuery = typeof router.query.cliente_id === 'string'
+    ? router.query.cliente_id
+    : ''
+
+  const [cliente, setCliente] = useState<Cliente | null>(null)
   const [campanhas, setCampanhas] = useState<Campanha[]>([])
   const [carregando, setCarregando] = useState(true)
   const [criandoCampanha, setCriandoCampanha] = useState(false)
@@ -47,6 +64,8 @@ export default function Campanhas() {
   const [salvando, setSalvando] = useState(false)
 
   useEffect(() => {
+    if (!router.isReady) return
+
     if (!utilizador) {
       const timer = setTimeout(() => {
         setCarregando(false)
@@ -55,9 +74,40 @@ export default function Campanhas() {
       return () => clearTimeout(timer)
     }
 
-    buscarCampanhas()
+    carregarTudo()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [utilizador])
+  }, [router.isReady, utilizador, clienteIdQuery])
+
+  const carregarTudo = async () => {
+    await carregarCliente()
+    await buscarCampanhas()
+  }
+
+  const carregarCliente = async () => {
+    if (!utilizador || !clienteIdQuery) {
+      setCliente(null)
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('clientes')
+      .select('id,nome,nicho,descricao,plataformas')
+      .eq('id', clienteIdQuery)
+      .eq('utilizador_id', utilizador.id)
+      .single()
+
+    if (error) {
+      console.error('Erro ao carregar cliente:', error)
+      setCliente(null)
+      return
+    }
+
+    setCliente(data || null)
+
+    if (data?.plataformas?.length) {
+      setPlataformasSelecionadas(data.plataformas)
+    }
+  }
 
   const buscarCampanhas = async () => {
     if (!utilizador) {
@@ -68,11 +118,17 @@ export default function Campanhas() {
     setCarregando(true)
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('campanhas')
         .select('*')
         .eq('utilizador_id', utilizador.id)
         .order('criado_em', { ascending: false })
+
+      if (clienteIdQuery) {
+        query = query.eq('cliente_id', clienteIdQuery)
+      }
+
+      const { data, error } = await query
 
       if (error) {
         console.error('Erro ao buscar campanhas:', error)
@@ -145,6 +201,7 @@ export default function Campanhas() {
         .from('campanhas')
         .insert({
           utilizador_id: utilizador.id,
+          cliente_id: clienteIdQuery || null,
           nome: nomeCampanha.trim(),
           descricao: descricaoCampanha.trim(),
           plataformas: plataformasSelecionadas.length ? plataformasSelecionadas : ['instagram'],
@@ -161,12 +218,16 @@ export default function Campanhas() {
 
       setNomeCampanha('')
       setDescricaoCampanha('')
-      setPlataformasSelecionadas(['instagram'])
+      setPlataformasSelecionadas(cliente?.plataformas?.length ? cliente.plataformas : ['instagram'])
       setCriandoCampanha(false)
       setSalvando(false)
 
       if (data?.id) {
-        router.push(`/painel/campanhas/${data.id}`)
+        router.push(
+          clienteIdQuery
+            ? `/painel/campanhas/${data.id}?cliente_id=${clienteIdQuery}`
+            : `/painel/campanhas/${data.id}`
+        )
       } else {
         buscarCampanhas()
       }
@@ -180,12 +241,17 @@ export default function Campanhas() {
     if (!confirm('Tens a certeza que queres apagar esta campanha?')) return
 
     try {
-      await supabase.from('campanha_conteudos').delete().eq('campanha_id', id)
+      await supabase
+        .from('campanha_conteudos')
+        .delete()
+        .eq('campanha_id', id)
+        .eq('utilizador_id', utilizador?.id)
 
       const { error } = await supabase
         .from('campanhas')
         .delete()
         .eq('id', id)
+        .eq('utilizador_id', utilizador?.id)
 
       if (error) {
         alert(error.message || 'Erro ao apagar campanha.')
@@ -199,7 +265,19 @@ export default function Campanhas() {
   }
 
   const abrirCampanha = (id: string) => {
-    router.push(`/painel/campanhas/${id}`)
+    router.push(
+      clienteIdQuery
+        ? `/painel/campanhas/${id}?cliente_id=${clienteIdQuery}`
+        : `/painel/campanhas/${id}`
+    )
+  }
+
+  const abrirModalNovaCampanha = () => {
+    if (cliente?.plataformas?.length) {
+      setPlataformasSelecionadas(cliente.plataformas)
+    }
+
+    setCriandoCampanha(true)
   }
 
   return (
@@ -208,15 +286,85 @@ export default function Campanhas() {
         <title>Campanhas — AdPulse</title>
       </Head>
 
-      <LayoutPainel titulo="Campanhas">
+      <LayoutPainel titulo={cliente ? `Campanhas — ${cliente.nome}` : 'Campanhas'}>
         <div className="max-w-6xl mx-auto w-full">
+          {cliente && (
+            <div className="mb-5">
+              <button
+                onClick={() => router.push(`/painel/clientes/${cliente.id}`)}
+                className="inline-flex items-center gap-2 text-sm mb-4"
+                style={{
+                  color: 'var(--cor-texto-muted)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                <ArrowLeft size={15} />
+                Voltar ao cliente
+              </button>
+
+              <div
+                className="card"
+                style={{
+                  background:
+                    'linear-gradient(135deg, rgba(124,123,250,0.12), rgba(244,114,182,0.08))',
+                  border: '1px solid rgba(124,123,250,0.25)',
+                }}
+              >
+                <div className="flex items-start gap-4">
+                  <div
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                    style={{
+                      background: 'rgba(124,123,250,0.16)',
+                      border: '1px solid rgba(124,123,250,0.3)',
+                      color: 'var(--cor-marca)',
+                    }}
+                  >
+                    <Building2 size={24} />
+                  </div>
+
+                  <div>
+                    <h2
+                      className="text-xl font-bold"
+                      style={{ fontFamily: 'var(--fonte-display)' }}
+                    >
+                      {cliente.nome}
+                    </h2>
+
+                    <p className="text-sm mt-1" style={{ color: 'var(--cor-texto-muted)' }}>
+                      {cliente.nicho || cliente.descricao || 'Campanhas ligadas a este cliente.'}
+                    </p>
+
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {(cliente.plataformas || []).map((p) => (
+                        <span
+                          key={p}
+                          className="text-xs px-2 py-0.5 rounded-full capitalize"
+                          style={{
+                            background: `${COR_PLATAFORMA[p] || 'var(--cor-marca)'}18`,
+                            color: COR_PLATAFORMA[p] || 'var(--cor-marca)',
+                            border: `1px solid ${COR_PLATAFORMA[p] || 'var(--cor-marca)'}30`,
+                          }}
+                        >
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
             <div>
               <h1
                 className="text-2xl font-bold mb-1"
                 style={{ fontFamily: 'var(--fonte-display)' }}
               >
-                Campanhas
+                {cliente ? 'Campanhas do cliente' : 'Campanhas'}
               </h1>
 
               <p className="text-sm" style={{ color: 'var(--cor-texto-muted)' }}>
@@ -225,11 +373,13 @@ export default function Campanhas() {
               </p>
 
               <p className="text-xs mt-1" style={{ color: 'var(--cor-texto-fraco)' }}>
-                Organiza posts, stories, legendas e conteúdos preparados para publicar.
+                {cliente
+                  ? 'Tudo o que criares aqui fica associado a este cliente.'
+                  : 'Organiza posts, stories, legendas e conteúdos preparados para publicar.'}
               </p>
             </div>
 
-            <button onClick={() => setCriandoCampanha(true)} className="btn-primario">
+            <button onClick={abrirModalNovaCampanha} className="btn-primario">
               <Plus size={16} />
               Nova campanha
             </button>
@@ -248,11 +398,17 @@ export default function Campanhas() {
             >
               <div className="card w-full max-w-md" style={{ minWidth: 0 }}>
                 <h3
-                  className="font-semibold text-lg mb-4"
+                  className="font-semibold text-lg mb-2"
                   style={{ fontFamily: 'var(--fonte-display)' }}
                 >
                   Nova campanha
                 </h3>
+
+                {cliente && (
+                  <p className="text-xs mb-4" style={{ color: 'var(--cor-texto-muted)' }}>
+                    Esta campanha será criada dentro de: <strong>{cliente.nome}</strong>
+                  </p>
+                )}
 
                 <div className="flex flex-col gap-4">
                   <div>
@@ -280,7 +436,7 @@ export default function Campanhas() {
                     <label className="label-campo">Plataformas</label>
 
                     <div className="flex flex-wrap gap-2">
-                      {['instagram', 'tiktok', 'youtube', 'linkedin'].map((p) => (
+                      {['instagram', 'tiktok', 'youtube', 'linkedin', 'facebook'].map((p) => (
                         <button
                           type="button"
                           key={p}
@@ -375,14 +531,16 @@ export default function Campanhas() {
                 className="font-semibold text-lg mb-2"
                 style={{ fontFamily: 'var(--fonte-display)' }}
               >
-                Sem campanhas ainda
+                {cliente ? 'Sem campanhas neste cliente' : 'Sem campanhas ainda'}
               </h3>
 
               <p className="text-sm mb-6" style={{ color: 'var(--cor-texto-muted)' }}>
-                Cria a tua primeira campanha para preparar conteúdos, stories e legendas.
+                {cliente
+                  ? 'Cria a primeira campanha para este cliente.'
+                  : 'Cria a tua primeira campanha para preparar conteúdos, stories e legendas.'}
               </p>
 
-              <button onClick={() => setCriandoCampanha(true)} className="btn-primario">
+              <button onClick={abrirModalNovaCampanha} className="btn-primario">
                 <Plus size={16} />
                 Criar primeira campanha
               </button>
